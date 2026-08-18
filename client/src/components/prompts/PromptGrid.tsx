@@ -9,6 +9,7 @@ interface PromptGridProps {
   onFavorite: (id: string) => void;
   onPin: (id: string) => void;
   onCopy: (content: string) => void;
+  onDuplicate: (prompt: Prompt) => void;
 }
 
 export default function PromptGrid({
@@ -18,6 +19,7 @@ export default function PromptGrid({
   onFavorite,
   onPin,
   onCopy,
+  onDuplicate,
 }: PromptGridProps) {
   if (prompts.length === 0) {
     return (
@@ -44,6 +46,7 @@ export default function PromptGrid({
           onFavorite={onFavorite}
           onPin={onPin}
           onCopy={onCopy}
+          onDuplicate={onDuplicate}
         />
       ))}
     </div>

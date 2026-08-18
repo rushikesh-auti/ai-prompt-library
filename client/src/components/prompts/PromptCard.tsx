@@ -16,6 +16,7 @@ interface PromptCardProps {
   onFavorite: (id: string) => void;
   onPin: (id: string) => void;
   onCopy: (content: string) => void;
+  onDuplicate: (prompt: Prompt) => void;
 }
 
 export default function PromptCard({
@@ -25,6 +26,7 @@ export default function PromptCard({
   onFavorite,
   onPin,
   onCopy,
+  onDuplicate,
 }: PromptCardProps) {
   return (
     <article className="group flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
@@ -50,8 +52,10 @@ export default function PromptCard({
 
         <button
           type="button"
+          onClick={() => onDuplicate(prompt)}
           className="shrink-0 rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-          aria-label="More options"
+          aria-label="Duplicate prompt"
+          title="Duplicate prompt"
         >
           <FiMoreVertical size={18} />
         </button>

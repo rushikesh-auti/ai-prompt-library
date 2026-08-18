@@ -12,10 +12,10 @@ import PromptFilters, {
 import {
   addPrompt,
   editPrompt,
+  favoritePrompt,
   fetchPrompts,
+  pinPrompt,
   removePrompt,
-  toggleFavorite,
-  togglePinned,
 } from "../features/prompts/promptSlice";
 
 import {
@@ -127,13 +127,88 @@ export default function Dashboard() {
   };
 
   // Favorite prompt
-  const handleFavorite = (id: string) => {
-    dispatch(toggleFavorite(id));
+  const handleFavorite = async (id: string) => {
+    const prompt = prompts.find(
+      (item) => item._id === id
+    );
+
+    if (!prompt) return;
+
+    try {
+      await dispatch(
+        favoritePrompt({
+          id,
+          isFavorite: !prompt.isFavorite,
+        })
+      ).unwrap();
+
+      toast.success(
+        !prompt.isFavorite
+          ? "Added to favorites"
+          : "Removed from favorites"
+      );
+    } catch (error) {
+      toast.error(
+        typeof error === "string"
+          ? error
+          : "Failed to update favorite"
+      );
+    }
   };
 
   // Pin prompt
-  const handlePin = (id: string) => {
-    dispatch(togglePinned(id));
+  const handlePin = async (id: string) => {
+    const prompt = prompts.find(
+      (item) => item._id === id
+    );
+
+    if (!prompt) return;
+
+    try {
+      await dispatch(
+        pinPrompt({
+          id,
+          isPinned: !prompt.isPinned,
+        })
+      ).unwrap();
+
+      toast.success(
+        !prompt.isPinned
+          ? "Prompt pinned"
+          : "Prompt unpinned"
+      );
+    } catch (error) {
+      toast.error(
+        typeof error === "string"
+          ? error
+          : "Failed to update pin"
+      );
+    }
+  };
+
+  // Duplicate prompt
+  const handleDuplicate = async (prompt: Prompt) => {
+    try {
+      await dispatch(
+        addPrompt({
+          title: `${prompt.title} (Copy)`,
+          content: prompt.content,
+          category: prompt.category,
+          tags: prompt.tags,
+          description: prompt.description,
+          isFavorite: false,
+          isPinned: false,
+        })
+      ).unwrap();
+
+      toast.success("Prompt duplicated successfully");
+    } catch (error) {
+      toast.error(
+        typeof error === "string"
+          ? error
+          : "Failed to duplicate prompt"
+      );
+    }
   };
 
   // Copy prompt
@@ -176,8 +251,10 @@ export default function Dashboard() {
       // Favorites / Pinned
       const matchesFilter =
         filter === "all" ||
-        (filter === "favorites" && prompt.isFavorite) ||
-        (filter === "pinned" && prompt.isPinned);
+        (filter === "favorites" &&
+          prompt.isFavorite) ||
+        (filter === "pinned" &&
+          prompt.isPinned);
 
       return (
         matchesSearch &&
@@ -217,6 +294,30 @@ export default function Dashboard() {
     sort,
   ]);
 
+  // Dashboard statistics
+  const statistics = useMemo(() => {
+    const categoryCounts = prompts.reduce(
+      (acc, prompt) => {
+        acc[prompt.category] =
+          (acc[prompt.category] || 0) + 1;
+
+        return acc;
+      },
+      {} as Record<string, number>
+    );
+
+    return {
+      total: prompts.length,
+      favorites: prompts.filter(
+        (prompt) => prompt.isFavorite
+      ).length,
+      pinned: prompts.filter(
+        (prompt) => prompt.isPinned
+      ).length,
+      categories: Object.keys(categoryCounts).length,
+    };
+  }, [prompts]);
+
   // Clear all filters
   const handleClearFilters = () => {
     setSearch("");
@@ -252,6 +353,49 @@ export default function Dashboard() {
             >
               + Add Prompt
             </button>
+          </div>
+
+          {/* Statistics */}
+          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <p className="text-sm font-medium text-slate-500">
+                Total Prompts
+              </p>
+
+              <p className="mt-2 text-3xl font-bold text-slate-900">
+                {statistics.total}
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <p className="text-sm font-medium text-slate-500">
+                Favorites
+              </p>
+
+              <p className="mt-2 text-3xl font-bold text-slate-900">
+                {statistics.favorites}
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <p className="text-sm font-medium text-slate-500">
+                Pinned
+              </p>
+
+              <p className="mt-2 text-3xl font-bold text-slate-900">
+                {statistics.pinned}
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <p className="text-sm font-medium text-slate-500">
+                Categories Used
+              </p>
+
+              <p className="mt-2 text-3xl font-bold text-slate-900">
+                {statistics.categories}
+              </p>
+            </div>
           </div>
 
           {/* Content */}
@@ -318,6 +462,7 @@ export default function Dashboard() {
                   onFavorite={handleFavorite}
                   onPin={handlePin}
                   onCopy={handleCopy}
+                  onDuplicate={handleDuplicate}
                 />
               </>
             )}
