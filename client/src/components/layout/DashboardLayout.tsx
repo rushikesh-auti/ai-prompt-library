@@ -5,19 +5,17 @@ import Sidebar from "./Sidebar";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
+  onAddPrompt: () => void;
 }
 
 export default function DashboardLayout({
   children,
+  onAddPrompt,
 }: DashboardLayoutProps) {
   const [activeView, setActiveView] = useState("all");
   const [search, setSearch] = useState("");
   const [isDark, setIsDark] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  const handleAddPrompt = () => {
-    console.log("Add prompt clicked");
-  };
 
   return (
     <div
@@ -26,12 +24,14 @@ export default function DashboardLayout({
       }`}
     >
       <div className="flex min-h-screen">
+        {/* Desktop Sidebar */}
         <Sidebar
           activeView={activeView}
           onViewChange={setActiveView}
-          onAddPrompt={handleAddPrompt}
+          onAddPrompt={onAddPrompt}
         />
 
+        {/* Mobile Sidebar */}
         {mobileMenuOpen && (
           <div className="fixed inset-0 z-40 lg:hidden">
             <button
@@ -41,7 +41,7 @@ export default function DashboardLayout({
               className="absolute inset-0 bg-black/30"
             />
 
-            <div className="relative z-10 flex h-full w-72 flex-col bg-white shadow-xl">
+            <div className="relative z-10 h-full w-72 bg-white shadow-xl">
               <Sidebar
                 activeView={activeView}
                 onViewChange={(view) => {
@@ -50,13 +50,14 @@ export default function DashboardLayout({
                 }}
                 onAddPrompt={() => {
                   setMobileMenuOpen(false);
-                  handleAddPrompt();
+                  onAddPrompt();
                 }}
               />
             </div>
           </div>
         )}
 
+        {/* Main Content */}
         <div className="min-w-0 flex-1">
           <Header
             search={search}
