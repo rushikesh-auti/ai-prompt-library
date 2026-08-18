@@ -22,6 +22,7 @@ import {
   importPrompts,
   pinPrompt,
   removePrompt,
+  updatePromptOrder,
 } from "../features/prompts/promptSlice";
 
 import {
@@ -228,6 +229,13 @@ export default function Dashboard() {
     }
   };
 
+  // Reorder prompts
+  const handleReorder = (reorderedPrompts: Prompt[]) => {
+  dispatch(updatePromptOrder(reorderedPrompts));
+
+  toast.success("Prompt order updated");
+};
+
   // Export prompts as JSON
   const handleExportJSON = () => {
     try {
@@ -236,7 +244,11 @@ export default function Dashboard() {
         return;
       }
 
-      const jsonData = JSON.stringify(prompts, null, 2);
+      const jsonData = JSON.stringify(
+        prompts,
+        null,
+        2
+      );
 
       const blob = new Blob([jsonData], {
         type: "application/json",
@@ -247,12 +259,15 @@ export default function Dashboard() {
       const link = document.createElement("a");
 
       link.href = url;
+
       link.download = `ai-prompt-library-${
         new Date().toISOString().split("T")[0]
       }.json`;
 
       document.body.appendChild(link);
+
       link.click();
+
       document.body.removeChild(link);
 
       URL.revokeObjectURL(url);
@@ -276,7 +291,9 @@ export default function Dashboard() {
       !file.name.toLowerCase().endsWith(".json")
     ) {
       toast.error("Please select a valid JSON file");
+
       event.target.value = "";
+
       return;
     }
 
@@ -309,10 +326,14 @@ export default function Dashboard() {
         );
 
         if (!isValid) {
-          throw new Error("Invalid prompt structure");
+          throw new Error(
+            "Invalid prompt structure"
+          );
         }
 
-        dispatch(importPrompts(parsed as Prompt[]));
+        dispatch(
+          importPrompts(parsed as Prompt[])
+        );
 
         setSearch("");
         setCategory("All");
@@ -335,6 +356,7 @@ export default function Dashboard() {
 
     reader.onerror = () => {
       toast.error("Failed to read JSON file");
+
       event.target.value = "";
     };
 
@@ -430,13 +452,17 @@ export default function Dashboard() {
 
     return {
       total: prompts.length,
+
       favorites: prompts.filter(
         (prompt) => prompt.isFavorite
       ).length,
+
       pinned: prompts.filter(
         (prompt) => prompt.isPinned
       ).length,
-      categories: Object.keys(categoryCounts).length,
+
+      categories:
+        Object.keys(categoryCounts).length,
     };
   }, [prompts]);
 
@@ -450,7 +476,9 @@ export default function Dashboard() {
 
   return (
     <>
-      <DashboardLayout onAddPrompt={handleAddPrompt}>
+      <DashboardLayout
+        onAddPrompt={handleAddPrompt}
+      >
         <div className="mx-auto max-w-7xl">
           {/* Page Header */}
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -505,6 +533,7 @@ export default function Dashboard() {
 
           {/* Statistics */}
           <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {/* Total */}
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <p className="text-sm font-medium text-slate-500">
                 Total Prompts
@@ -515,6 +544,7 @@ export default function Dashboard() {
               </p>
             </div>
 
+            {/* Favorites */}
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <p className="text-sm font-medium text-slate-500">
                 Favorites
@@ -525,6 +555,7 @@ export default function Dashboard() {
               </p>
             </div>
 
+            {/* Pinned */}
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <p className="text-sm font-medium text-slate-500">
                 Pinned
@@ -535,6 +566,7 @@ export default function Dashboard() {
               </p>
             </div>
 
+            {/* Categories */}
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <p className="text-sm font-medium text-slate-500">
                 Categories Used
@@ -611,6 +643,7 @@ export default function Dashboard() {
                   onPin={handlePin}
                   onCopy={handleCopy}
                   onDuplicate={handleDuplicate}
+                  onReorder={handleReorder}
                 />
               </>
             )}

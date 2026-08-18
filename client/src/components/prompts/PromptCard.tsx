@@ -104,7 +104,11 @@ export default function PromptCard({
           >
             <FiHeart
               size={17}
-              fill={prompt.isFavorite ? "currentColor" : "none"}
+              fill={
+                prompt.isFavorite
+                  ? "currentColor"
+                  : "none"
+              }
             />
           </button>
 
@@ -120,7 +124,11 @@ export default function PromptCard({
           >
             <FiStar
               size={17}
-              fill={prompt.isPinned ? "currentColor" : "none"}
+              fill={
+                prompt.isPinned
+                  ? "currentColor"
+                  : "none"
+              }
             />
           </button>
 
