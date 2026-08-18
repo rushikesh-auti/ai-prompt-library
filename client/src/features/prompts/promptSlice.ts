@@ -23,8 +23,37 @@ interface PromptState {
   error: string | null;
 }
 
+const STORAGE_KEY = "ai-prompt-library-prompts";
+
+const loadPromptsFromStorage = (): Prompt[] => {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+
+    if (!stored) {
+      return [];
+    }
+
+    const parsed = JSON.parse(stored);
+
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const savePromptsToStorage = (prompts: Prompt[]) => {
+  try {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify(prompts)
+    );
+  } catch {
+    // Ignore LocalStorage errors
+  }
+};
+
 const initialState: PromptState = {
-  prompts: [],
+  prompts: loadPromptsFromStorage(),
   loading: false,
   error: null,
 };
@@ -61,7 +90,13 @@ export const addPrompt = createAsyncThunk(
 export const editPrompt = createAsyncThunk(
   "prompts/editPrompt",
   async (
-    { id, data }: { id: string; data: UpdatePromptData },
+    {
+      id,
+      data,
+    }: {
+      id: string;
+      data: UpdatePromptData;
+    },
     { rejectWithValue }
   ) => {
     try {
@@ -93,7 +128,13 @@ export const removePrompt = createAsyncThunk(
 export const favoritePrompt = createAsyncThunk(
   "prompts/favoritePrompt",
   async (
-    { id, isFavorite }: { id: string; isFavorite: boolean },
+    {
+      id,
+      isFavorite,
+    }: {
+      id: string;
+      isFavorite: boolean;
+    },
     { rejectWithValue }
   ) => {
     try {
@@ -110,7 +151,13 @@ export const favoritePrompt = createAsyncThunk(
 export const pinPrompt = createAsyncThunk(
   "prompts/pinPrompt",
   async (
-    { id, isPinned }: { id: string; isPinned: boolean },
+    {
+      id,
+      isPinned,
+    }: {
+      id: string;
+      isPinned: boolean;
+    },
     { rejectWithValue }
   ) => {
     try {
@@ -137,6 +184,7 @@ const promptSlice = createSlice({
       action: PayloadAction<Prompt[]>
     ) => {
       state.prompts = action.payload;
+      savePromptsToStorage(state.prompts);
     },
   },
 
@@ -147,14 +195,19 @@ const promptSlice = createSlice({
         state.loading = true;
         state.error = null;
       })
+
       .addCase(fetchPrompts.fulfilled, (state, action) => {
         state.loading = false;
         state.prompts = action.payload;
+
+        savePromptsToStorage(state.prompts);
       })
+
       .addCase(fetchPrompts.rejected, (state, action) => {
         state.loading = false;
         state.error =
-          (action.payload as string) || "Failed to fetch prompts";
+          (action.payload as string) ||
+          "Failed to fetch prompts";
       });
 
     // Create
@@ -163,14 +216,19 @@ const promptSlice = createSlice({
         state.loading = true;
         state.error = null;
       })
+
       .addCase(addPrompt.fulfilled, (state, action) => {
         state.loading = false;
         state.prompts.unshift(action.payload);
+
+        savePromptsToStorage(state.prompts);
       })
+
       .addCase(addPrompt.rejected, (state, action) => {
         state.loading = false;
         state.error =
-          (action.payload as string) || "Failed to create prompt";
+          (action.payload as string) ||
+          "Failed to create prompt";
       });
 
     // Update
@@ -179,6 +237,7 @@ const promptSlice = createSlice({
         state.loading = true;
         state.error = null;
       })
+
       .addCase(editPrompt.fulfilled, (state, action) => {
         state.loading = false;
 
@@ -188,12 +247,16 @@ const promptSlice = createSlice({
 
         if (index !== -1) {
           state.prompts[index] = action.payload;
+
+          savePromptsToStorage(state.prompts);
         }
       })
+
       .addCase(editPrompt.rejected, (state, action) => {
         state.loading = false;
         state.error =
-          (action.payload as string) || "Failed to update prompt";
+          (action.payload as string) ||
+          "Failed to update prompt";
       });
 
     // Delete
@@ -202,17 +265,22 @@ const promptSlice = createSlice({
         state.loading = true;
         state.error = null;
       })
+
       .addCase(removePrompt.fulfilled, (state, action) => {
         state.loading = false;
 
         state.prompts = state.prompts.filter(
           (prompt) => prompt._id !== action.payload
         );
+
+        savePromptsToStorage(state.prompts);
       })
+
       .addCase(removePrompt.rejected, (state, action) => {
         state.loading = false;
         state.error =
-          (action.payload as string) || "Failed to delete prompt";
+          (action.payload as string) ||
+          "Failed to delete prompt";
       });
 
     // Favorite
@@ -224,11 +292,15 @@ const promptSlice = createSlice({
 
         if (index !== -1) {
           state.prompts[index] = action.payload;
+
+          savePromptsToStorage(state.prompts);
         }
       })
+
       .addCase(favoritePrompt.rejected, (state, action) => {
         state.error =
-          (action.payload as string) || "Failed to update favorite";
+          (action.payload as string) ||
+          "Failed to update favorite";
       });
 
     // Pin
@@ -240,11 +312,15 @@ const promptSlice = createSlice({
 
         if (index !== -1) {
           state.prompts[index] = action.payload;
+
+          savePromptsToStorage(state.prompts);
         }
       })
+
       .addCase(pinPrompt.rejected, (state, action) => {
         state.error =
-          (action.payload as string) || "Failed to update pin";
+          (action.payload as string) ||
+          "Failed to update pin";
       });
   },
 });
