@@ -6,34 +6,32 @@ import type {
   UpdatePromptData,
 } from "../types/prompt";
 
-const API_URL = "http://localhost:5000/api/prompts";
+const API_URL = import.meta.env.VITE_API_URL;
 
 export const getPrompts = async (): Promise<Prompt[]> => {
-  const response = await axios.get(API_URL);
+  const response = await axios.get<Prompt[]>(API_URL);
 
   return response.data;
 };
 
 export const createPrompt = async (
-  data: CreatePromptData
+  data: CreatePromptData,
 ): Promise<Prompt> => {
-  const response = await axios.post(API_URL, data);
+  const response = await axios.post<Prompt>(API_URL, data);
 
   return response.data;
 };
 
 export const updatePrompt = async (
   id: string,
-  data: UpdatePromptData
+  data: UpdatePromptData,
 ): Promise<Prompt> => {
-  const response = await axios.put(`${API_URL}/${id}`, data);
+  const response = await axios.put<Prompt>(`${API_URL}/${id}`, data);
 
   return response.data;
 };
 
-export const deletePrompt = async (
-  id: string
-): Promise<string> => {
+export const deletePrompt = async (id: string): Promise<string> => {
   await axios.delete(`${API_URL}/${id}`);
 
   return id;

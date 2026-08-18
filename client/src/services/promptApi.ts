@@ -6,10 +6,10 @@ import type {
   UpdatePromptData,
 } from "../types/prompt";
 
-const API_URL = "http://localhost:5000/api/prompts";
+const API_URL = import.meta.env.VITE_API_URL;
 
 const promptApi = axios.create({
-  baseURL: API_URL,
+  baseURL: `${API_URL}/prompts`,
   headers: {
     "Content-Type": "application/json",
   },
@@ -26,17 +26,19 @@ export const getPrompt = async (id: string): Promise<Prompt> => {
 };
 
 export const createPrompt = async (
-  data: CreatePromptData
+  data: CreatePromptData,
 ): Promise<Prompt> => {
   const response = await promptApi.post("/", data);
+
   return response.data.data;
 };
 
 export const updatePrompt = async (
   id: string,
-  data: UpdatePromptData
+  data: UpdatePromptData,
 ): Promise<Prompt> => {
   const response = await promptApi.put(`/${id}`, data);
+
   return response.data.data;
 };
 
