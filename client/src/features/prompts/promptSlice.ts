@@ -175,18 +175,26 @@ const promptSlice = createSlice({
   initialState,
 
   reducers: {
-    clearPromptError: (state) => {
-      state.error = null;
-    },
-
-    updatePromptOrder: (
-      state,
-      action: PayloadAction<Prompt[]>
-    ) => {
-      state.prompts = action.payload;
-      savePromptsToStorage(state.prompts);
-    },
+  clearPromptError: (state) => {
+    state.error = null;
   },
+
+  updatePromptOrder: (
+    state,
+    action: PayloadAction<Prompt[]>
+  ) => {
+    state.prompts = action.payload;
+  },
+
+  importPrompts: (
+  state,
+  action: PayloadAction<Prompt[]>
+) => {
+  state.prompts = action.payload;
+
+  savePromptsToStorage(state.prompts);
+},
+},
 
   extraReducers: (builder) => {
     // Fetch
@@ -328,6 +336,7 @@ const promptSlice = createSlice({
 export const {
   clearPromptError,
   updatePromptOrder,
+  importPrompts,
 } = promptSlice.actions;
 
 export default promptSlice.reducer;

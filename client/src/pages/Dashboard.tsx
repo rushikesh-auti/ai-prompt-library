@@ -1,4 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type ChangeEvent,
+} from "react";
 import { toast } from "react-hot-toast";
 
 import DashboardLayout from "../components/layout/DashboardLayout";
@@ -14,6 +19,7 @@ import {
   editPrompt,
   favoritePrompt,
   fetchPrompts,
+  importPrompts,
   pinPrompt,
   removePrompt,
 } from "../features/prompts/promptSlice";
@@ -222,9 +228,123 @@ export default function Dashboard() {
     }
   };
 
+  // Export prompts as JSON
+  const handleExportJSON = () => {
+    try {
+      if (prompts.length === 0) {
+        toast.error("No prompts available to export");
+        return;
+      }
+
+      const jsonData = JSON.stringify(prompts, null, 2);
+
+      const blob = new Blob([jsonData], {
+        type: "application/json",
+      });
+
+      const url = URL.createObjectURL(blob);
+
+      const link = document.createElement("a");
+
+      link.href = url;
+      link.download = `ai-prompt-library-${
+        new Date().toISOString().split("T")[0]
+      }.json`;
+
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      URL.revokeObjectURL(url);
+
+      toast.success("Prompts exported successfully");
+    } catch {
+      toast.error("Failed to export prompts");
+    }
+  };
+
+  // Import prompts from JSON
+  const handleImportJSON = (
+    event: ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0];
+
+    if (!file) return;
+
+    if (
+      file.type !== "application/json" &&
+      !file.name.toLowerCase().endsWith(".json")
+    ) {
+      toast.error("Please select a valid JSON file");
+      event.target.value = "";
+      return;
+    }
+
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      try {
+        const parsed: unknown = JSON.parse(
+          reader.result as string
+        );
+
+        if (!Array.isArray(parsed)) {
+          throw new Error("Invalid format");
+        }
+
+        const isValid = parsed.every(
+          (prompt) =>
+            prompt &&
+            typeof prompt === "object" &&
+            "_id" in prompt &&
+            "title" in prompt &&
+            "content" in prompt &&
+            "category" in prompt &&
+            "tags" in prompt &&
+            typeof prompt._id === "string" &&
+            typeof prompt.title === "string" &&
+            typeof prompt.content === "string" &&
+            typeof prompt.category === "string" &&
+            Array.isArray(prompt.tags)
+        );
+
+        if (!isValid) {
+          throw new Error("Invalid prompt structure");
+        }
+
+        dispatch(importPrompts(parsed as Prompt[]));
+
+        setSearch("");
+        setCategory("All");
+        setFilter("all");
+        setSort("newest");
+
+        toast.success(
+          `${parsed.length} prompt${
+            parsed.length !== 1 ? "s" : ""
+          } imported successfully`
+        );
+      } catch {
+        toast.error(
+          "Invalid JSON file. Please import a valid prompt library."
+        );
+      } finally {
+        event.target.value = "";
+      }
+    };
+
+    reader.onerror = () => {
+      toast.error("Failed to read JSON file");
+      event.target.value = "";
+    };
+
+    reader.readAsText(file);
+  };
+
   // Filter + Search + Sort
   const filteredPrompts = useMemo(() => {
-    const normalizedSearch = search.trim().toLowerCase();
+    const normalizedSearch =
+      search.trim().toLowerCase();
 
     const result = prompts.filter((prompt) => {
       // Search
@@ -240,7 +360,9 @@ export default function Dashboard() {
           .toLowerCase()
           .includes(normalizedSearch) ||
         prompt.tags.some((tag) =>
-          tag.toLowerCase().includes(normalizedSearch)
+          tag
+            .toLowerCase()
+            .includes(normalizedSearch)
         );
 
       // Category
@@ -342,17 +464,43 @@ export default function Dashboard() {
               </h1>
 
               <p className="mt-2 text-sm text-slate-500">
-                Manage, organize, and reuse your AI prompts.
+                Manage, organize, and reuse your AI
+                prompts.
               </p>
             </div>
 
-            <button
-              type="button"
-              onClick={handleAddPrompt}
-              className="rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
-            >
-              + Add Prompt
-            </button>
+            {/* Dashboard Actions */}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              {/* Import JSON */}
+              <label className="cursor-pointer rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-center text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
+                Import JSON
+
+                <input
+                  type="file"
+                  accept=".json,application/json"
+                  onChange={handleImportJSON}
+                  className="hidden"
+                />
+              </label>
+
+              {/* Export JSON */}
+              <button
+                type="button"
+                onClick={handleExportJSON}
+                className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Export JSON
+              </button>
+
+              {/* Add Prompt */}
+              <button
+                type="button"
+                onClick={handleAddPrompt}
+                className="rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+              >
+                + Add Prompt
+              </button>
+            </div>
           </div>
 
           {/* Statistics */}
