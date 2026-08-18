@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import Header from "./Header";
 import Sidebar from "./Sidebar";
+import { useTheme } from "../../hooks/useTheme";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -14,13 +15,20 @@ export default function DashboardLayout({
 }: DashboardLayoutProps) {
   const [activeView, setActiveView] = useState("all");
   const [search, setSearch] = useState("");
-  const [isDark, setIsDark] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] =
+    useState(false);
+
+  const {
+    isDark,
+    toggleTheme,
+  } = useTheme();
 
   return (
     <div
-      className={`min-h-screen ${
-        isDark ? "bg-slate-950" : "bg-slate-50"
+      className={`min-h-screen transition-colors ${
+        isDark
+          ? "bg-slate-950 text-white"
+          : "bg-slate-50 text-slate-900"
       }`}
     >
       <div className="flex min-h-screen">
@@ -41,7 +49,13 @@ export default function DashboardLayout({
               className="absolute inset-0 bg-black/30"
             />
 
-            <div className="relative z-10 h-full w-72 bg-white shadow-xl">
+            <div
+              className={`relative z-10 h-full w-72 shadow-xl ${
+                isDark
+                  ? "bg-slate-900"
+                  : "bg-white"
+              }`}
+            >
               <Sidebar
                 activeView={activeView}
                 onViewChange={(view) => {
@@ -62,9 +76,11 @@ export default function DashboardLayout({
           <Header
             search={search}
             onSearchChange={setSearch}
-            onMenuClick={() => setMobileMenuOpen(true)}
+            onMenuClick={() =>
+              setMobileMenuOpen(true)
+            }
             isDark={isDark}
-            onThemeToggle={() => setIsDark((value) => !value)}
+            onThemeToggle={toggleTheme}
           />
 
           <main className="p-4 sm:p-6 lg:p-8">
