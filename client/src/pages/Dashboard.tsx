@@ -486,7 +486,7 @@ export default function Dashboard() {
                 Welcome back 👋
               </p>
 
-              <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+              <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-3xl">
                 Your Prompt Library
               </h1>
 
@@ -500,7 +500,7 @@ export default function Dashboard() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
               {/* Import */}
 
-              <label className="cursor-pointer rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-center text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
+              <label className="cursor-pointer rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-center text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800">
                 Import JSON
                 <input
                   type="file"
@@ -515,7 +515,7 @@ export default function Dashboard() {
               <button
                 type="button"
                 onClick={handleExportJSON}
-                className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
               >
                 Export JSON
               </button>
@@ -537,44 +537,44 @@ export default function Dashboard() {
           <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {/* Total */}
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
               <p className="text-sm font-medium text-slate-500">
                 Total Prompts
               </p>
 
-              <p className="mt-2 text-3xl font-bold text-slate-900">
+              <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-white">
                 {statistics.total}
               </p>
             </div>
 
             {/* Favorites */}
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
               <p className="text-sm font-medium text-slate-500">Favorites</p>
 
-              <p className="mt-2 text-3xl font-bold text-slate-900">
+              <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-white">
                 {statistics.favorites}
               </p>
             </div>
 
             {/* Pinned */}
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
               <p className="text-sm font-medium text-slate-500">Pinned</p>
 
-              <p className="mt-2 text-3xl font-bold text-slate-900">
+              <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-white">
                 {statistics.pinned}
               </p>
             </div>
 
             {/* Categories */}
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
               <p className="text-sm font-medium text-slate-500">
                 Categories Used
               </p>
 
-              <p className="mt-2 text-3xl font-bold text-slate-900">
+              <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-white">
                 {statistics.categories}
               </p>
             </div>
@@ -586,7 +586,7 @@ export default function Dashboard() {
             {/* Loading */}
 
             {loading && prompts.length === 0 && (
-              <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center">
+              <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center dark:border-slate-800 dark:bg-slate-900">
                 <p className="text-sm text-slate-500">Loading prompts...</p>
               </div>
             )}
@@ -594,8 +594,8 @@ export default function Dashboard() {
             {/* Error */}
 
             {!loading && error && (
-              <div className="rounded-2xl border border-red-200 bg-red-50 p-6">
-                <p className="text-sm font-medium text-red-700">{error}</p>
+              <div className="rounded-2xl border border-red-200 bg-red-50 p-6 dark:border-red-900/60 dark:bg-red-950/40">
+                <p className="text-sm font-medium text-red-700 dark:text-red-300">{error}</p>
               </div>
             )}
 
@@ -641,7 +641,7 @@ export default function Dashboard() {
 
                 <div className="mb-5 flex items-center justify-between">
                   <div>
-                    <h2 className="text-lg font-semibold text-slate-900">
+                    <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
                       {category !== "All"
                         ? category
                         : filter === "favorites"

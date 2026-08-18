@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Dark mode is controlled by the app toggle, not the operating system setting. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   font-family:
     Inter,
@@ -28,6 +31,14 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  background: #f8fafc;
+  transition: background-color 200ms ease, color 200ms ease;
+}
+
+html.dark,
+html.dark body {
+  background: #020617;
+  color: #f8fafc;
 }
 
 button,
