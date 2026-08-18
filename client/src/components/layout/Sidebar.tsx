@@ -11,6 +11,7 @@ interface SidebarProps {
   activeView: string;
   onViewChange: (view: string) => void;
   onAddPrompt: () => void;
+  mobile?: boolean;
 }
 
 const categories = [
@@ -30,6 +31,7 @@ export default function Sidebar({
   activeView,
   onViewChange,
   onAddPrompt,
+  mobile = false,
 }: SidebarProps) {
   const menuItems = [
     {
@@ -50,8 +52,14 @@ export default function Sidebar({
   ];
 
   return (
-    <aside className="fixed left-0 top-0 z-40 hidden h-screen w-64 shrink-0 flex-col border-r border-slate-200 bg-white lg:flex">
-      {/* Sidebar Header */}
+    <aside
+      className={
+        mobile
+          ? "flex h-full w-full flex-col bg-white"
+          : "hidden h-full w-64 shrink-0 flex-col border-r border-slate-200 bg-white lg:flex"
+      }
+    >
+      {/* Logo */}
       <div className="shrink-0 border-b border-slate-200 p-5">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-900 text-white">
@@ -70,7 +78,7 @@ export default function Sidebar({
         </div>
       </div>
 
-      {/* Scrollable Sidebar Content */}
+      {/* Navigation */}
       <nav className="min-h-0 flex-1 overflow-y-auto p-4">
         {/* Library */}
         <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
@@ -94,7 +102,6 @@ export default function Sidebar({
                 }`}
               >
                 <Icon size={18} />
-
                 <span>{item.label}</span>
               </button>
             );
@@ -106,7 +113,7 @@ export default function Sidebar({
           <div className="mb-2 flex items-center gap-2 px-3">
             <FiTag
               size={14}
-              className="shrink-0 text-slate-400"
+              className="text-slate-400"
             />
 
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
@@ -137,16 +144,15 @@ export default function Sidebar({
         </div>
       </nav>
 
-      {/* Bottom Add Prompt */}
-      <div className="shrink-0 border-t border-slate-200 bg-white p-4">
+      {/* Add Prompt */}
+      <div className="shrink-0 border-t border-slate-200 p-4">
         <button
           type="button"
           onClick={onAddPrompt}
           className="flex w-full items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
         >
           <FiPlus size={18} />
-
-          <span>Add Prompt</span>
+          Add Prompt
         </button>
       </div>
     </aside>
