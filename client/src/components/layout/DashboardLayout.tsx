@@ -7,21 +7,23 @@ import { useTheme } from "../../hooks/useTheme";
 interface DashboardLayoutProps {
   children: React.ReactNode;
   onAddPrompt: () => void;
+  activeView: string;
+  onViewChange: (view: string) => void;
+  search: string;
+  onSearchChange: (value: string) => void;
 }
 
 export default function DashboardLayout({
   children,
   onAddPrompt,
+  activeView,
+  onViewChange,
+  search,
+  onSearchChange,
 }: DashboardLayoutProps) {
-  const [activeView, setActiveView] = useState("all");
-  const [search, setSearch] = useState("");
-  const [mobileMenuOpen, setMobileMenuOpen] =
-    useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const {
-    isDark,
-    toggleTheme,
-  } = useTheme();
+  const { isDark, toggleTheme } = useTheme();
 
   return (
     <div
@@ -33,33 +35,35 @@ export default function DashboardLayout({
     >
       <div className="flex min-h-screen">
         {/* Desktop Sidebar */}
-        <Sidebar
-          activeView={activeView}
-          onViewChange={setActiveView}
-          onAddPrompt={onAddPrompt}
-        />
+        <aside className="hidden lg:block">
+          <Sidebar
+            activeView={activeView}
+            onViewChange={onViewChange}
+            onAddPrompt={onAddPrompt}
+          />
+        </aside>
 
         {/* Mobile Sidebar */}
         {mobileMenuOpen && (
-          <div className="fixed inset-0 z-40 lg:hidden">
+          <div className="fixed inset-0 z-50 lg:hidden">
+            {/* Overlay */}
             <button
               type="button"
               aria-label="Close menu"
               onClick={() => setMobileMenuOpen(false)}
-              className="absolute inset-0 bg-black/30"
+              className="absolute inset-0 bg-black/40"
             />
 
+            {/* Sidebar */}
             <div
               className={`relative z-10 h-full w-72 shadow-xl ${
-                isDark
-                  ? "bg-slate-900"
-                  : "bg-white"
+                isDark ? "bg-slate-900" : "bg-white"
               }`}
             >
               <Sidebar
                 activeView={activeView}
                 onViewChange={(view) => {
-                  setActiveView(view);
+                  onViewChange(view);
                   setMobileMenuOpen(false);
                 }}
                 onAddPrompt={() => {
@@ -75,10 +79,8 @@ export default function DashboardLayout({
         <div className="min-w-0 flex-1">
           <Header
             search={search}
-            onSearchChange={setSearch}
-            onMenuClick={() =>
-              setMobileMenuOpen(true)
-            }
+            onSearchChange={onSearchChange}
+            onMenuClick={() => setMobileMenuOpen(true)}
             isDark={isDark}
             onThemeToggle={toggleTheme}
           />

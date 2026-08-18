@@ -1,9 +1,4 @@
-import {
-  useEffect,
-  useMemo,
-  useState,
-  type ChangeEvent,
-} from "react";
+import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import { toast } from "react-hot-toast";
 
 import DashboardLayout from "../components/layout/DashboardLayout";
@@ -25,65 +20,86 @@ import {
   updatePromptOrder,
 } from "../features/prompts/promptSlice";
 
-import {
-  useAppDispatch,
-  useAppSelector,
-} from "../store/hooks";
+import { useAppDispatch, useAppSelector } from "../store/hooks";
 
-import type {
-  Category,
-  CreatePromptData,
-  Prompt,
-} from "../types/prompt";
+import type { Category, CreatePromptData, Prompt } from "../types/prompt";
 
 export default function Dashboard() {
   const dispatch = useAppDispatch();
 
-  const { prompts, loading, error } = useAppSelector(
-    (state) => state.prompts
-  );
+  const { prompts, loading, error } = useAppSelector((state) => state.prompts);
 
-  // Form state
+  const [activeView, setActiveView] = useState("all");
   const [formOpen, setFormOpen] = useState(false);
-  const [editingPrompt, setEditingPrompt] =
-    useState<Prompt | null>(null);
+  const [editingPrompt, setEditingPrompt] = useState<Prompt | null>(null);
 
-  // Filter state
+  //  FILTER STATE
+
   const [search, setSearch] = useState("");
-  const [category, setCategory] = useState<Category | "All">(
-    "All"
-  );
-  const [filter, setFilter] =
-    useState<PromptFilter>("all");
-  const [sort, setSort] =
-    useState<PromptSort>("newest");
+  const [category, setCategory] = useState<Category | "All">("All");
+  const [filter, setFilter] = useState<PromptFilter>("all");
+  const [sort, setSort] = useState<PromptSort>("newest");
 
-  // Fetch prompts when dashboard loads
   useEffect(() => {
     dispatch(fetchPrompts());
   }, [dispatch]);
 
-  // Open Add Prompt form
+  //  SIDEBAR NAVIGATION
+
+  const handleViewChange = (view: string) => {
+    setActiveView(view);
+    setSearch("");
+
+    if (view === "all") {
+      setCategory("All");
+      setFilter("all");
+      return;
+    }
+
+    if (view === "favorites") {
+      setCategory("All");
+      setFilter("favorites");
+      return;
+    }
+
+    if (view === "pinned") {
+      setCategory("All");
+      setFilter("pinned");
+      return;
+    }
+
+    // Category selected from sidebar
+    setCategory(view as Category);
+    setFilter("all");
+  };
+
+  //  ADD PROMPT
+
   const handleAddPrompt = () => {
     setEditingPrompt(null);
     setFormOpen(true);
   };
 
-  // Open Edit Prompt form
+  //  EDIT PROMPT
+
   const handleEdit = (prompt: Prompt) => {
     setEditingPrompt(prompt);
     setFormOpen(true);
   };
 
-  // Close Add/Edit form
+  //  CLOSE FORM
+
   const handleCloseForm = () => {
-    if (loading) return;
+    if (loading) {
+      return;
+    }
 
     setFormOpen(false);
     setEditingPrompt(null);
   };
 
-  // Create / Update prompt
+  //  CREATE / UPDATE PROMPT
+
   const handleSubmit = async (data: CreatePromptData) => {
     try {
       if (editingPrompt) {
@@ -91,7 +107,7 @@ export default function Dashboard() {
           editPrompt({
             id: editingPrompt._id,
             data,
-          })
+          }),
         ).unwrap();
 
         toast.success("Prompt updated successfully");
@@ -104,21 +120,20 @@ export default function Dashboard() {
       setFormOpen(false);
       setEditingPrompt(null);
     } catch (error) {
-      toast.error(
-        typeof error === "string"
-          ? error
-          : "Something went wrong"
-      );
+      toast.error(typeof error === "string" ? error : "Something went wrong");
     }
   };
 
-  // Delete prompt
+  //  DELETE PROMPT
+
   const handleDelete = async (id: string) => {
     const confirmed = window.confirm(
-      "Are you sure you want to delete this prompt?"
+      "Are you sure you want to delete this prompt?",
     );
 
-    if (!confirmed) return;
+    if (!confirmed) {
+      return;
+    }
 
     try {
       await dispatch(removePrompt(id)).unwrap();
@@ -126,74 +141,65 @@ export default function Dashboard() {
       toast.success("Prompt deleted successfully");
     } catch (error) {
       toast.error(
-        typeof error === "string"
-          ? error
-          : "Failed to delete prompt"
+        typeof error === "string" ? error : "Failed to delete prompt",
       );
     }
   };
 
-  // Favorite prompt
   const handleFavorite = async (id: string) => {
-    const prompt = prompts.find(
-      (item) => item._id === id
-    );
+    const prompt = prompts.find((item) => item._id === id);
 
-    if (!prompt) return;
+    if (!prompt) {
+      return;
+    }
 
     try {
+      const newFavoriteState = !prompt.isFavorite;
+
       await dispatch(
         favoritePrompt({
           id,
-          isFavorite: !prompt.isFavorite,
-        })
+          isFavorite: newFavoriteState,
+        }),
       ).unwrap();
 
       toast.success(
-        !prompt.isFavorite
-          ? "Added to favorites"
-          : "Removed from favorites"
+        newFavoriteState ? "Added to favorites" : "Removed from favorites",
       );
     } catch (error) {
       toast.error(
-        typeof error === "string"
-          ? error
-          : "Failed to update favorite"
+        typeof error === "string" ? error : "Failed to update favorite",
       );
     }
   };
 
-  // Pin prompt
-  const handlePin = async (id: string) => {
-    const prompt = prompts.find(
-      (item) => item._id === id
-    );
+  //  PIN PROMPT
 
-    if (!prompt) return;
+  const handlePin = async (id: string) => {
+    const prompt = prompts.find((item) => item._id === id);
+
+    if (!prompt) {
+      return;
+    }
 
     try {
+      const newPinnedState = !prompt.isPinned;
+
       await dispatch(
         pinPrompt({
           id,
-          isPinned: !prompt.isPinned,
-        })
+          isPinned: newPinnedState,
+        }),
       ).unwrap();
 
-      toast.success(
-        !prompt.isPinned
-          ? "Prompt pinned"
-          : "Prompt unpinned"
-      );
+      toast.success(newPinnedState ? "Prompt pinned" : "Prompt unpinned");
     } catch (error) {
-      toast.error(
-        typeof error === "string"
-          ? error
-          : "Failed to update pin"
-      );
+      toast.error(typeof error === "string" ? error : "Failed to update pin");
     }
   };
 
-  // Duplicate prompt
+  //  DUPLICATE PROMPT
+
   const handleDuplicate = async (prompt: Prompt) => {
     try {
       await dispatch(
@@ -205,20 +211,19 @@ export default function Dashboard() {
           description: prompt.description,
           isFavorite: false,
           isPinned: false,
-        })
+        }),
       ).unwrap();
 
       toast.success("Prompt duplicated successfully");
     } catch (error) {
       toast.error(
-        typeof error === "string"
-          ? error
-          : "Failed to duplicate prompt"
+        typeof error === "string" ? error : "Failed to duplicate prompt",
       );
     }
   };
 
-  // Copy prompt
+    //  COPY PROMPT
+
   const handleCopy = async (content: string) => {
     try {
       await navigator.clipboard.writeText(content);
@@ -229,26 +234,25 @@ export default function Dashboard() {
     }
   };
 
-  // Reorder prompts
+    //  REORDER PROMPTS
+
   const handleReorder = (reorderedPrompts: Prompt[]) => {
-  dispatch(updatePromptOrder(reorderedPrompts));
+    dispatch(updatePromptOrder(reorderedPrompts));
 
-  toast.success("Prompt order updated");
-};
+    toast.success("Prompt order updated");
+  };
 
-  // Export prompts as JSON
+    //  EXPORT JSON
+
   const handleExportJSON = () => {
     try {
       if (prompts.length === 0) {
         toast.error("No prompts available to export");
+
         return;
       }
 
-      const jsonData = JSON.stringify(
-        prompts,
-        null,
-        2
-      );
+      const jsonData = JSON.stringify(prompts, null, 2);
 
       const blob = new Blob([jsonData], {
         type: "application/json",
@@ -278,18 +282,20 @@ export default function Dashboard() {
     }
   };
 
-  // Import prompts from JSON
-  const handleImportJSON = (
-    event: ChangeEvent<HTMLInputElement>
-  ) => {
+    //  IMPORT JSON
+
+  const handleImportJSON = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
 
-    if (!file) return;
+    if (!file) {
+      return;
+    }
 
-    if (
-      file.type !== "application/json" &&
-      !file.name.toLowerCase().endsWith(".json")
-    ) {
+    const isJson =
+      file.type === "application/json" ||
+      file.name.toLowerCase().endsWith(".json");
+
+    if (!isJson) {
       toast.error("Please select a valid JSON file");
 
       event.target.value = "";
@@ -301,9 +307,7 @@ export default function Dashboard() {
 
     reader.onload = () => {
       try {
-        const parsed: unknown = JSON.parse(
-          reader.result as string
-        );
+        const parsed: unknown = JSON.parse(reader.result as string);
 
         if (!Array.isArray(parsed)) {
           throw new Error("Invalid format");
@@ -322,33 +326,29 @@ export default function Dashboard() {
             typeof prompt.title === "string" &&
             typeof prompt.content === "string" &&
             typeof prompt.category === "string" &&
-            Array.isArray(prompt.tags)
+            Array.isArray(prompt.tags),
         );
 
         if (!isValid) {
-          throw new Error(
-            "Invalid prompt structure"
-          );
+          throw new Error("Invalid prompt structure");
         }
 
-        dispatch(
-          importPrompts(parsed as Prompt[])
-        );
+        dispatch(importPrompts(parsed as Prompt[]));
 
+        // Reset filters
         setSearch("");
         setCategory("All");
         setFilter("all");
         setSort("newest");
+        setActiveView("all");
 
         toast.success(
           `${parsed.length} prompt${
             parsed.length !== 1 ? "s" : ""
-          } imported successfully`
+          } imported successfully`,
         );
       } catch {
-        toast.error(
-          "Invalid JSON file. Please import a valid prompt library."
-        );
+        toast.error("Invalid JSON file. Please import a valid prompt library.");
       } finally {
         event.target.value = "";
       }
@@ -363,57 +363,51 @@ export default function Dashboard() {
     reader.readAsText(file);
   };
 
-  // Filter + Search + Sort
+    //  FILTER + SEARCH + SORT
+
   const filteredPrompts = useMemo(() => {
-    const normalizedSearch =
-      search.trim().toLowerCase();
+    const normalizedSearch = search.trim().toLowerCase();
 
     const result = prompts.filter((prompt) => {
-      // Search
+      const title = prompt.title?.toLowerCase() ?? "";
+
+      const content = prompt.content?.toLowerCase() ?? "";
+
+      const description = prompt.description?.toLowerCase() ?? "";
+
+      const tags = prompt.tags ?? [];
+
+      /* Search */
+
       const matchesSearch =
         normalizedSearch === "" ||
-        prompt.title
-          .toLowerCase()
-          .includes(normalizedSearch) ||
-        prompt.content
-          .toLowerCase()
-          .includes(normalizedSearch) ||
-        prompt.description
-          .toLowerCase()
-          .includes(normalizedSearch) ||
-        prompt.tags.some((tag) =>
-          tag
-            .toLowerCase()
-            .includes(normalizedSearch)
-        );
+        title.includes(normalizedSearch) ||
+        content.includes(normalizedSearch) ||
+        description.includes(normalizedSearch) ||
+        tags.some((tag) => tag.toLowerCase().includes(normalizedSearch));
 
-      // Category
+      /* Category */
+
       const matchesCategory =
-        category === "All" ||
-        prompt.category === category;
+        category === "All" || prompt.category === category;
 
-      // Favorites / Pinned
+      /* Favorite / Pinned */
+
       const matchesFilter =
         filter === "all" ||
-        (filter === "favorites" &&
-          prompt.isFavorite) ||
-        (filter === "pinned" &&
-          prompt.isPinned);
+        (filter === "favorites" && prompt.isFavorite) ||
+        (filter === "pinned" && prompt.isPinned);
 
-      return (
-        matchesSearch &&
-        matchesCategory &&
-        matchesFilter
-      );
+      return matchesSearch && matchesCategory && matchesFilter;
     });
 
-    // Sorting
+    /* Sorting */
+
     return [...result].sort((a, b) => {
       switch (sort) {
         case "oldest":
           return (
-            new Date(a.createdAt).getTime() -
-            new Date(b.createdAt).getTime()
+            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
           );
 
         case "title-asc":
@@ -425,62 +419,67 @@ export default function Dashboard() {
         case "newest":
         default:
           return (
-            new Date(b.createdAt).getTime() -
-            new Date(a.createdAt).getTime()
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
           );
       }
     });
-  }, [
-    prompts,
-    search,
-    category,
-    filter,
-    sort,
-  ]);
+  }, [prompts, search, category, filter, sort]);
 
-  // Dashboard statistics
+    //  STATISTICS
+
   const statistics = useMemo(() => {
     const categoryCounts = prompts.reduce(
       (acc, prompt) => {
-        acc[prompt.category] =
-          (acc[prompt.category] || 0) + 1;
+        acc[prompt.category] = (acc[prompt.category] || 0) + 1;
 
         return acc;
       },
-      {} as Record<string, number>
+      {} as Record<string, number>,
     );
 
     return {
       total: prompts.length,
 
-      favorites: prompts.filter(
-        (prompt) => prompt.isFavorite
-      ).length,
+      favorites: prompts.filter((prompt) => prompt.isFavorite).length,
 
-      pinned: prompts.filter(
-        (prompt) => prompt.isPinned
-      ).length,
+      pinned: prompts.filter((prompt) => prompt.isPinned).length,
 
-      categories:
-        Object.keys(categoryCounts).length,
+      categories: Object.keys(categoryCounts).length,
     };
   }, [prompts]);
 
-  // Clear all filters
+    //  CLEAR FILTERS
+
   const handleClearFilters = () => {
     setSearch("");
     setCategory("All");
     setFilter("all");
     setSort("newest");
+    setActiveView("all");
   };
+
+    //  RENDER
 
   return (
     <>
       <DashboardLayout
+        search={search}
+        onSearchChange={(value) => {
+          setSearch(value);
+
+          if (value.trim()) {
+            setActiveView("all");
+            setCategory("All");
+            setFilter("all");
+          }
+        }}
         onAddPrompt={handleAddPrompt}
+        activeView={activeView}
+        onViewChange={handleViewChange}
       >
         <div className="mx-auto max-w-7xl">
-          {/* Page Header */}
+              {/* PAGE HEADER */}
+
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="text-sm font-medium text-slate-500">
@@ -492,17 +491,17 @@ export default function Dashboard() {
               </h1>
 
               <p className="mt-2 text-sm text-slate-500">
-                Manage, organize, and reuse your AI
-                prompts.
+                Manage, organize, and reuse your AI prompts.
               </p>
             </div>
 
             {/* Dashboard Actions */}
+
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              {/* Import JSON */}
+              {/* Import */}
+
               <label className="cursor-pointer rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-center text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
                 Import JSON
-
                 <input
                   type="file"
                   accept=".json,application/json"
@@ -511,7 +510,8 @@ export default function Dashboard() {
                 />
               </label>
 
-              {/* Export JSON */}
+              {/* Export */}
+
               <button
                 type="button"
                 onClick={handleExportJSON}
@@ -521,6 +521,7 @@ export default function Dashboard() {
               </button>
 
               {/* Add Prompt */}
+
               <button
                 type="button"
                 onClick={handleAddPrompt}
@@ -531,9 +532,11 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Statistics */}
+          {/* STATISTICS */}
+
           <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {/* Total */}
+
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <p className="text-sm font-medium text-slate-500">
                 Total Prompts
@@ -545,10 +548,9 @@ export default function Dashboard() {
             </div>
 
             {/* Favorites */}
+
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <p className="text-sm font-medium text-slate-500">
-                Favorites
-              </p>
+              <p className="text-sm font-medium text-slate-500">Favorites</p>
 
               <p className="mt-2 text-3xl font-bold text-slate-900">
                 {statistics.favorites}
@@ -556,10 +558,9 @@ export default function Dashboard() {
             </div>
 
             {/* Pinned */}
+
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <p className="text-sm font-medium text-slate-500">
-                Pinned
-              </p>
+              <p className="text-sm font-medium text-slate-500">Pinned</p>
 
               <p className="mt-2 text-3xl font-bold text-slate-900">
                 {statistics.pinned}
@@ -567,6 +568,7 @@ export default function Dashboard() {
             </div>
 
             {/* Categories */}
+
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <p className="text-sm font-medium text-slate-500">
                 Categories Used
@@ -578,63 +580,86 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Content */}
+          {/* CONTENT */}
+
           <div className="mt-8">
             {/* Loading */}
+
             {loading && prompts.length === 0 && (
               <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center">
-                <p className="text-sm text-slate-500">
-                  Loading prompts...
-                </p>
+                <p className="text-sm text-slate-500">Loading prompts...</p>
               </div>
             )}
 
             {/* Error */}
+
             {!loading && error && (
               <div className="rounded-2xl border border-red-200 bg-red-50 p-6">
-                <p className="text-sm font-medium text-red-700">
-                  {error}
-                </p>
+                <p className="text-sm font-medium text-red-700">{error}</p>
               </div>
             )}
 
-            {/* Main content */}
+            {/* Main Content */}
+
             {!loading && !error && (
               <>
-                {/* Search + Filters */}
+                {/* Filters */}
+
                 <PromptFilters
                   search={search}
                   category={category}
                   filter={filter}
                   sort={sort}
-                  onSearchChange={setSearch}
-                  onCategoryChange={setCategory}
-                  onFilterChange={setFilter}
+                  onSearchChange={(value) => {
+                    setSearch(value);
+
+                    if (value.trim()) {
+                      setActiveView("all");
+                      setCategory("All");
+                      setFilter("all");
+                    }
+                  }}
+                  onCategoryChange={(value) => {
+                    setCategory(value);
+                    setFilter("all");
+                    setSearch("");
+
+                    setActiveView(value === "All" ? "all" : value);
+                  }}
+                  onFilterChange={(value) => {
+                    setFilter(value);
+                    setCategory("All");
+                    setSearch("");
+
+                    setActiveView(value);
+                  }}
                   onSortChange={setSort}
                   onClear={handleClearFilters}
                 />
 
                 {/* Results Header */}
+
                 <div className="mb-5 flex items-center justify-between">
                   <div>
                     <h2 className="text-lg font-semibold text-slate-900">
-                      {filter === "favorites"
-                        ? "Favorite Prompts"
-                        : filter === "pinned"
-                          ? "Pinned Prompts"
-                          : "All Prompts"}
+                      {category !== "All"
+                        ? category
+                        : filter === "favorites"
+                          ? "Favorite Prompts"
+                          : filter === "pinned"
+                            ? "Pinned Prompts"
+                            : "All Prompts"}
                     </h2>
 
                     <p className="mt-1 text-sm text-slate-500">
                       {filteredPrompts.length} prompt
-                      {filteredPrompts.length !== 1
-                        ? "s"
-                        : ""}
+                      {filteredPrompts.length !== 1 ? "s" : ""}
                     </p>
                   </div>
                 </div>
 
                 {/* Prompt Grid */}
+
                 <PromptGrid
                   prompts={filteredPrompts}
                   onEdit={handleEdit}
@@ -651,7 +676,8 @@ export default function Dashboard() {
         </div>
       </DashboardLayout>
 
-      {/* Add / Edit Modal */}
+      {/* ADD / EDIT PROMPT MODAL */}
+
       {formOpen && (
         <PromptForm
           prompt={editingPrompt}
