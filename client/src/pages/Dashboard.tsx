@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import { toast } from "react-hot-toast";
+import { FiArchive, FiHeart, FiLayers, FiStar } from "react-icons/fi";
 
 import DashboardLayout from "../components/layout/DashboardLayout";
 import PromptForm from "../components/prompts/PromptForm";
@@ -482,25 +483,21 @@ export default function Dashboard() {
 
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="text-sm font-medium text-slate-500">
-                Welcome back 👋
-              </p>
-
               <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-3xl">
                 Your Prompt Library
               </h1>
 
-              <p className="mt-2 text-sm text-slate-500">
-                Manage, organize, and reuse your AI prompts.
+              <p className="mt-2 max-w-xl text-sm leading-6 text-slate-500">
+                Your reusable AI workflows, organized and ready when you need them.
               </p>
             </div>
 
             {/* Dashboard Actions */}
 
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
               {/* Import */}
 
-              <label className="cursor-pointer rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-center text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800">
+              <label className="cursor-pointer rounded-xl border border-slate-300 bg-white px-3 py-3 text-center text-xs font-semibold text-slate-700 transition hover:bg-slate-50 sm:px-4 sm:py-2.5 sm:text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800">
                 Import JSON
                 <input
                   type="file"
@@ -515,7 +512,7 @@ export default function Dashboard() {
               <button
                 type="button"
                 onClick={handleExportJSON}
-                className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                className="rounded-xl border border-slate-300 bg-white px-3 py-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 sm:px-4 sm:py-2.5 sm:text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
               >
                 Export JSON
               </button>
@@ -525,7 +522,7 @@ export default function Dashboard() {
               <button
                 type="button"
                 onClick={handleAddPrompt}
-                className="rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+                className="col-span-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 sm:col-span-1 sm:py-2.5"
               >
                 + Add Prompt
               </button>
@@ -534,13 +531,13 @@ export default function Dashboard() {
 
           {/* STATISTICS */}
 
-          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-7 grid grid-cols-2 gap-3 lg:grid-cols-4">
             {/* Total */}
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-              <p className="text-sm font-medium text-slate-500">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 dark:border-slate-800 dark:bg-slate-900">
+              <div className="flex items-center justify-between"><p className="text-xs font-semibold text-slate-500 sm:text-sm">
                 Total Prompts
-              </p>
+              </p><FiArchive className="text-slate-400" size={18} /></div>
 
               <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-white">
                 {statistics.total}
@@ -549,8 +546,8 @@ export default function Dashboard() {
 
             {/* Favorites */}
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-              <p className="text-sm font-medium text-slate-500">Favorites</p>
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 dark:border-slate-800 dark:bg-slate-900">
+              <div className="flex items-center justify-between"><p className="text-xs font-semibold text-slate-500 sm:text-sm">Favorites</p><FiHeart className="text-slate-400" size={18} /></div>
 
               <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-white">
                 {statistics.favorites}
@@ -559,8 +556,8 @@ export default function Dashboard() {
 
             {/* Pinned */}
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-              <p className="text-sm font-medium text-slate-500">Pinned</p>
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 dark:border-slate-800 dark:bg-slate-900">
+              <div className="flex items-center justify-between"><p className="text-xs font-semibold text-slate-500 sm:text-sm">Pinned</p><FiStar className="text-slate-400" size={18} /></div>
 
               <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-white">
                 {statistics.pinned}
@@ -569,10 +566,10 @@ export default function Dashboard() {
 
             {/* Categories */}
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-              <p className="text-sm font-medium text-slate-500">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 dark:border-slate-800 dark:bg-slate-900">
+              <div className="flex items-center justify-between"><p className="text-xs font-semibold text-slate-500 sm:text-sm">
                 Categories Used
-              </p>
+              </p><FiLayers className="text-slate-400" size={18} /></div>
 
               <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-white">
                 {statistics.categories}

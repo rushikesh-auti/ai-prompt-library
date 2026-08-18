@@ -28,7 +28,7 @@ export default function Header({
           : "border-slate-200 bg-white/95"
       }`}
     >
-      <div className="flex h-16 items-center gap-3 px-4 sm:px-6">
+      <div className="flex min-h-16 items-center gap-3 px-4 py-3 sm:h-16 sm:px-6 sm:py-0">
         {/* Mobile Menu */}
         <button
           type="button"
@@ -61,7 +61,7 @@ export default function Header({
               onSearchChange(event.target.value)
             }
             placeholder="Search prompts..."
-            className={`w-full rounded-lg border py-2.5 pl-10 pr-4 text-sm outline-none transition ${
+            className={`w-full rounded-xl border py-3 pl-10 pr-4 text-sm outline-none transition sm:py-2.5 ${
               isDark
                 ? "border-slate-700 bg-slate-800 text-white placeholder:text-slate-500 focus:border-slate-600 focus:bg-slate-800 focus:ring-2 focus:ring-slate-700"
                 : "border-slate-200 bg-slate-50 text-slate-900 placeholder:text-slate-400 focus:border-slate-400 focus:bg-white focus:ring-2 focus:ring-slate-100"
