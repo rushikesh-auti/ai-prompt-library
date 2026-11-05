@@ -38,4 +38,16 @@ export interface CreatePromptData {
   order?: number;
 }
 
+export interface PromptImportSummary {
+  created: number;
+  skipped: number;
+  failed: number;
+  prompts: Prompt[];
+  errors: Array<{
+    index: number;
+    message: string;
+    fields?: string[];
+  }>;
+}
+
 export type UpdatePromptData = Partial<CreatePromptData>;

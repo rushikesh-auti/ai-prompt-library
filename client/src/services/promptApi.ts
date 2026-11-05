@@ -3,6 +3,7 @@ import axios from "axios";
 import type {
   CreatePromptData,
   Prompt,
+  PromptImportSummary,
   UpdatePromptData,
 } from "../types/prompt";
 
@@ -29,6 +30,14 @@ export const createPrompt = async (
   data: CreatePromptData,
 ): Promise<Prompt> => {
   const response = await promptApi.post("/", data);
+
+  return response.data.data;
+};
+
+export const importPrompts = async (
+  data: unknown,
+): Promise<PromptImportSummary> => {
+  const response = await promptApi.post("/import", data);
 
   return response.data.data;
 };
