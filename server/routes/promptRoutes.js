@@ -4,6 +4,7 @@ const {
   getPrompts,
   getPrompt,
   createPrompt,
+  importPrompts,
   updatePrompt,
   deletePrompt,
 } = require("../controllers/promptController");
@@ -11,6 +12,8 @@ const {
 const router = express.Router();
 
 router.route("/").get(getPrompts).post(createPrompt);
+
+router.post("/import", importPrompts);
 
 router
   .route("/:id")
