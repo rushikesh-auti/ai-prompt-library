@@ -22,8 +22,13 @@ import {
 } from "../features/prompts/promptSlice";
 
 import { useAppDispatch, useAppSelector } from "../store/hooks";
+import { toPortablePromptData } from "../utils/promptStorage";
 
-import type { Category, CreatePromptData, Prompt } from "../types/prompt";
+import type {
+  Category,
+  CreatePromptData,
+  Prompt,
+} from "../types/prompt";
 
 export default function Dashboard() {
   const dispatch = useAppDispatch();
@@ -253,7 +258,8 @@ export default function Dashboard() {
         return;
       }
 
-      const jsonData = JSON.stringify(prompts, null, 2);
+      const portablePrompts = toPortablePromptData(prompts);
+      const jsonData = JSON.stringify(portablePrompts, null, 2);
 
       const blob = new Blob([jsonData], {
         type: "application/json",
@@ -285,7 +291,7 @@ export default function Dashboard() {
 
     //  IMPORT JSON
 
-  const handleImportJSON = (event: ChangeEvent<HTMLInputElement>) => {
+  const handleImportJSON = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
 
     if (!file) {
@@ -304,64 +310,86 @@ export default function Dashboard() {
       return;
     }
 
-    const reader = new FileReader();
+    if (file.size === 0) {
+      toast.error("The selected JSON file is empty");
+      event.target.value = "";
+      return;
+    }
 
-    reader.onload = () => {
-      try {
-        const parsed: unknown = JSON.parse(reader.result as string);
+    if (file.size > 1024 * 1024) {
+      toast.error("JSON files must be 1 MB or smaller");
+      event.target.value = "";
+      return;
+    }
 
-        if (!Array.isArray(parsed)) {
-          throw new Error("Invalid format");
-        }
+    try {
+      const fileContent = await file.text();
+      const parsed: unknown = JSON.parse(fileContent);
 
-        const isValid = parsed.every(
-          (prompt) =>
-            prompt &&
-            typeof prompt === "object" &&
-            "_id" in prompt &&
-            "title" in prompt &&
-            "content" in prompt &&
-            "category" in prompt &&
-            "tags" in prompt &&
-            typeof prompt._id === "string" &&
-            typeof prompt.title === "string" &&
-            typeof prompt.content === "string" &&
-            typeof prompt.category === "string" &&
-            Array.isArray(prompt.tags),
-        );
+      if (!Array.isArray(parsed) || parsed.length === 0) {
+        toast.error("The JSON file must contain a non-empty prompt array");
+        return;
+      }
 
-        if (!isValid) {
-          throw new Error("Invalid prompt structure");
-        }
+      const result = await dispatch(importPrompts(parsed)).unwrap();
+      const summary = result;
 
-        dispatch(importPrompts(parsed as Prompt[]));
-
-        // Reset filters
+      if (summary.created > 0) {
         setSearch("");
         setCategory("All");
         setFilter("all");
         setSort("newest");
         setActiveView("all");
-
-        toast.success(
-          `${parsed.length} prompt${
-            parsed.length !== 1 ? "s" : ""
-          } imported successfully`,
-        );
-      } catch {
-        toast.error("Invalid JSON file. Please import a valid prompt library.");
-      } finally {
-        event.target.value = "";
       }
-    };
 
-    reader.onerror = () => {
-      toast.error("Failed to read JSON file");
+      if (summary.failed > 0) {
+        toast.error(
+          `Imported ${summary.created}; skipped ${summary.skipped}; failed ${summary.failed}.`,
+        );
+      } else if (summary.skipped > 0) {
+        toast.success(
+          `Imported ${summary.created}; skipped ${summary.skipped} duplicate${summary.skipped === 1 ? "" : "s"}.`,
+        );
+      } else {
+        toast.success(
+          `${summary.created} prompt${summary.created === 1 ? "" : "s"} imported successfully`,
+        );
+      }
+    } catch (error) {
+      if (error instanceof SyntaxError) {
+        toast.error("Invalid JSON file. Please select a valid prompt library file.");
+      } else if (typeof error === "string") {
+        toast.error(error);
+      } else if (
+        error &&
+        typeof error === "object" &&
+        "message" in error &&
+        typeof error.message === "string"
+      ) {
+        const summary =
+          "summary" in error &&
+          error.summary &&
+          typeof error.summary === "object"
+            ? error.summary
+            : null;
+        const counts =
+          summary &&
+          "created" in summary &&
+          "skipped" in summary &&
+          "failed" in summary &&
+          typeof summary.created === "number" &&
+          typeof summary.skipped === "number" &&
+          typeof summary.failed === "number"
+            ? ` Created ${summary.created}, skipped ${summary.skipped}, failed ${summary.failed}.`
+            : "";
 
+        toast.error(`${error.message}${counts}`);
+      } else {
+        toast.error("Failed to read or import JSON file");
+      }
+    } finally {
       event.target.value = "";
-    };
-
-    reader.readAsText(file);
+    }
   };
 
     //  FILTER + SEARCH + SORT
@@ -503,6 +531,7 @@ export default function Dashboard() {
                   type="file"
                   accept=".json,application/json"
                   onChange={handleImportJSON}
+                  disabled={loading}
                   className="hidden"
                 />
               </label>
