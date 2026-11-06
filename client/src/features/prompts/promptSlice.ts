@@ -3,11 +3,13 @@ import {
   createSlice,
   type PayloadAction,
 } from "@reduxjs/toolkit";
+import axios from "axios";
 
 import {
   createPrompt,
   deletePrompt,
   getPrompts,
+  importPrompts as importPromptsRequest,
   updatePrompt,
 } from "../../services/promptApi";
 
@@ -58,17 +60,22 @@ const initialState: PromptState = {
   error: null,
 };
 
+const getErrorMessage = (error: unknown, fallback: string): string => {
+  if (axios.isAxiosError<{ message?: string }>(error)) {
+    return error.response?.data?.message || fallback;
+  }
+
+  return error instanceof Error ? error.message : fallback;
+};
+
 // Fetch all prompts
 export const fetchPrompts = createAsyncThunk(
   "prompts/fetchPrompts",
   async (_, { rejectWithValue }) => {
     try {
       return await getPrompts();
-    } catch (error: any) {
-      return rejectWithValue(
-        error.response?.data?.message ||
-          "Failed to fetch prompts"
-      );
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error, "Failed to fetch prompts"));
     }
   }
 );
@@ -82,11 +89,8 @@ export const addPrompt = createAsyncThunk(
   ) => {
     try {
       return await createPrompt(data);
-    } catch (error: any) {
-      return rejectWithValue(
-        error.response?.data?.message ||
-          "Failed to create prompt"
-      );
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error, "Failed to create prompt"));
     }
   }
 );
@@ -106,11 +110,8 @@ export const editPrompt = createAsyncThunk(
   ) => {
     try {
       return await updatePrompt(id, data);
-    } catch (error: any) {
-      return rejectWithValue(
-        error.response?.data?.message ||
-          "Failed to update prompt"
-      );
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error, "Failed to update prompt"));
     }
   }
 );
@@ -123,13 +124,26 @@ export const removePrompt = createAsyncThunk(
       await deletePrompt(id);
 
       return id;
-    } catch (error: any) {
-      return rejectWithValue(
-        error.response?.data?.message ||
-          "Failed to delete prompt"
-      );
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error, "Failed to delete prompt"));
     }
   }
+);
+
+export const importPrompts = createAsyncThunk(
+  "prompts/importPrompts",
+  async (data: unknown, { rejectWithValue }) => {
+    try {
+      return await importPromptsRequest(data);
+    } catch (error: unknown) {
+      const message = getErrorMessage(error, "Failed to import prompts");
+      const summary = axios.isAxiosError(error)
+        ? error.response?.data?.data || error.response?.data?.summary
+        : undefined;
+
+      return rejectWithValue({ message, summary });
+    }
+  },
 );
 
 // Toggle favorite
@@ -149,11 +163,8 @@ export const favoritePrompt = createAsyncThunk(
       return await updatePrompt(id, {
         isFavorite,
       });
-    } catch (error: any) {
-      return rejectWithValue(
-        error.response?.data?.message ||
-          "Failed to update favorite"
-      );
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error, "Failed to update favorite"));
     }
   }
 );
@@ -175,11 +186,8 @@ export const pinPrompt = createAsyncThunk(
       return await updatePrompt(id, {
         isPinned,
       });
-    } catch (error: any) {
-      return rejectWithValue(
-        error.response?.data?.message ||
-          "Failed to update pin"
-      );
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error, "Failed to update pin"));
     }
   }
 );
@@ -203,15 +211,6 @@ const promptSlice = createSlice({
       savePromptsToStorage(state.prompts);
     },
 
-    // Import prompts from JSON
-    importPrompts: (
-      state,
-      action: PayloadAction<Prompt[]>
-    ) => {
-      state.prompts = action.payload;
-
-      savePromptsToStorage(state.prompts);
-    },
   },
 
   extraReducers: (builder) => {
@@ -243,6 +242,24 @@ const promptSlice = createSlice({
             "Failed to fetch prompts";
         }
       );
+
+    builder
+      .addCase(importPrompts.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(importPrompts.fulfilled, (state, action) => {
+        state.loading = false;
+        state.prompts = [...action.payload.prompts, ...state.prompts];
+        savePromptsToStorage(state.prompts);
+      })
+      .addCase(importPrompts.rejected, (state, action) => {
+        state.loading = false;
+        state.error =
+          (action.payload as { message?: string } | undefined)?.message ||
+          action.error.message ||
+          "Failed to import prompts";
+      });
 
     // =========================
     // Create
@@ -413,7 +430,6 @@ const promptSlice = createSlice({
 export const {
   clearPromptError,
   updatePromptOrder,
-  importPrompts,
 } = promptSlice.actions;
 
 export default promptSlice.reducer;
