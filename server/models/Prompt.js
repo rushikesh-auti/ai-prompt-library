@@ -37,6 +37,7 @@ const promptSchema = new mongoose.Schema(
     tags: {
       type: [String],
       default: [],
+      validate: [(tags) => tags.length <= 20, "Tags cannot exceed 20 items"],
     },
 
     description: {
@@ -59,12 +60,15 @@ const promptSchema = new mongoose.Schema(
     order: {
       type: Number,
       default: 0,
+      validate: [Number.isFinite, "Order must be a finite number"],
     },
   },
   {
     timestamps: true,
-  }
+  },
 );
+
+promptSchema.index({ isPinned: -1, order: 1, createdAt: -1 });
 
 const Prompt = mongoose.model("Prompt", promptSchema);
 
