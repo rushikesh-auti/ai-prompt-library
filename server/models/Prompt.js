@@ -2,6 +2,21 @@ const mongoose = require("mongoose");
 
 const promptSchema = new mongoose.Schema(
   {
+    owner: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      select: false,
+      // Kept optional for a deliberate legacy-data migration. Ownerless records are never exposed.
+      required: false,
+      immutable: true,
+    },
+    visibility: {
+      type: String,
+      enum: ["private", "public"],
+      default: "private",
+      immutable: true,
+    },
+    isSample: { type: Boolean, default: false, immutable: true },
     title: {
       type: String,
       required: [true, "Prompt title is required"],
@@ -68,7 +83,9 @@ const promptSchema = new mongoose.Schema(
   },
 );
 
-promptSchema.index({ isPinned: -1, order: 1, createdAt: -1 });
+promptSchema.index({ owner: 1, isPinned: -1, order: 1, createdAt: -1 });
+promptSchema.index({ visibility: 1, category: 1, createdAt: -1 });
+promptSchema.index({ title: "text", description: "text", tags: "text" });
 
 const Prompt = mongoose.model("Prompt", promptSchema);
 

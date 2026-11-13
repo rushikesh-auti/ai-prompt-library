@@ -2,6 +2,7 @@ const express = require("express");
 
 const {
   getPrompts,
+  getSummary,
   getPrompt,
   createPrompt,
   importPrompts,
@@ -9,6 +10,8 @@ const {
   deletePrompt,
 } = require("../controllers/promptController");
 const validateRequest = require("../middleware/validateRequest");
+const authenticate = require("../middleware/authenticate");
+const csrfProtection = require("../middleware/csrfProtection");
 const {
   createPromptSchema,
   updatePromptSchema,
@@ -16,18 +19,20 @@ const {
 } = require("../validators/promptValidator");
 
 const router = express.Router();
+router.use(authenticate);
+router.get("/summary", getSummary);
 
 router
   .route("/")
   .get(getPrompts)
-  .post(validateRequest(createPromptSchema), createPrompt);
+  .post(csrfProtection, validateRequest(createPromptSchema), createPrompt);
 
-router.post("/import", validateRequest(importPromptsSchema), importPrompts);
+router.post("/import", csrfProtection, validateRequest(importPromptsSchema), importPrompts);
 
 router
   .route("/:id")
   .get(getPrompt)
-  .put(validateRequest(updatePromptSchema), updatePrompt)
-  .delete(deletePrompt);
+  .put(csrfProtection, validateRequest(updatePromptSchema), updatePrompt)
+  .delete(csrfProtection, deletePrompt);
 
 module.exports = router;
