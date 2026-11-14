@@ -1,10 +1,12 @@
 import { configureStore } from "@reduxjs/toolkit";
 
 import promptReducer from "../features/prompts/promptSlice";
+import authReducer from "../features/auth/authSlice";
 
 export const store = configureStore({
   reducer: {
     prompts: promptReducer,
+    auth: authReducer,
   },
 });
 
