@@ -2,7 +2,7 @@ import { useState } from "react";
 
 import Header from "./Header";
 import Sidebar from "./Sidebar";
-import { useTheme } from "../../hooks/useTheme";
+import { useAppSelector } from "../../store/hooks";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -11,6 +11,8 @@ interface DashboardLayoutProps {
   onViewChange: (view: string) => void;
   search: string;
   onSearchChange: (value: string) => void;
+  isDark: boolean;
+  onThemeToggle: () => void;
 }
 
 export default function DashboardLayout({
@@ -20,10 +22,11 @@ export default function DashboardLayout({
   onViewChange,
   search,
   onSearchChange,
+  isDark,
+  onThemeToggle,
 }: DashboardLayoutProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  const { isDark, toggleTheme } = useTheme();
+  const { user } = useAppSelector((state) => state.auth);
 
   return (
     <div
@@ -87,7 +90,10 @@ export default function DashboardLayout({
               onSearchChange={onSearchChange}
               onMenuClick={() => setMobileMenuOpen(true)}
               isDark={isDark}
-              onThemeToggle={toggleTheme}
+              onThemeToggle={onThemeToggle}
+              userName={user?.name}
+              userEmail={user?.email}
+              searchEnabled={activeView !== "collections" && activeView !== "settings"}
             />
           </header>
 

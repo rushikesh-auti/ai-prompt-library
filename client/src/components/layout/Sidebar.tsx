@@ -1,9 +1,11 @@
 import {
   FiArchive,
+  FiCompass,
+  FiFolder,
   FiHeart,
   FiHome,
   FiPlus,
-  FiStar,
+  FiSettings,
   FiTag,
 } from "react-icons/fi";
 
@@ -36,8 +38,13 @@ export default function Sidebar({
   const menuItems = [
     {
       id: "all",
-      label: "All Prompts",
+      label: "My prompts",
       icon: FiHome,
+    },
+    {
+      id: "explore",
+      label: "Explore",
+      icon: FiCompass,
     },
     {
       id: "favorites",
@@ -45,9 +52,14 @@ export default function Sidebar({
       icon: FiHeart,
     },
     {
-      id: "pinned",
-      label: "Pinned",
-      icon: FiStar,
+      id: "collections",
+      label: "Collections",
+      icon: FiFolder,
+    },
+    {
+      id: "settings",
+      label: "Settings",
+      icon: FiSettings,
     },
   ];
 
@@ -62,17 +74,17 @@ export default function Sidebar({
       {/* Logo */}
       <div className="shrink-0 border-b border-slate-200 p-5 dark:border-slate-800">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-900 text-white">
-            <FiArchive size={20} />
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-600 text-white shadow-sm shadow-violet-200 dark:shadow-none">
+            <FiArchive size={19} />
           </div>
 
           <div>
             <h1 className="text-sm font-bold text-slate-900 dark:text-white">
-              AI Prompt
+              Promptwise
             </h1>
 
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Library
+              AI workspace
             </p>
           </div>
         </div>
@@ -81,8 +93,8 @@ export default function Sidebar({
       {/* Navigation */}
       <nav className="min-h-0 flex-1 overflow-y-auto p-4">
         {/* Library */}
-        <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
-          Library
+        <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-400">
+          Workspace
         </p>
 
         <div className="space-y-1">
@@ -97,7 +109,7 @@ export default function Sidebar({
                 onClick={() => onViewChange(item.id)}
                 className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition ${
                   isActive
-                    ? "bg-slate-900 text-white"
+                    ? "bg-violet-50 text-violet-800 dark:bg-violet-950/60 dark:text-violet-200"
                     : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
                 }`}
               >
@@ -109,14 +121,11 @@ export default function Sidebar({
         </div>
 
         {/* Categories */}
-        <div className="mt-7">
+        <div className="mt-8">
           <div className="mb-2 flex items-center gap-2 px-3">
-            <FiTag
-              size={14}
-              className="text-slate-400"
-            />
+            <FiTag size={14} className="text-slate-400" />
 
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">
               Categories
             </p>
           </div>
@@ -132,7 +141,7 @@ export default function Sidebar({
                   onClick={() => onViewChange(category)}
                   className={`w-full rounded-lg px-3 py-2 text-left text-sm transition ${
                     isActive
-                      ? "bg-slate-100 font-medium text-slate-900 dark:bg-slate-800 dark:text-white"
+                      ? "bg-violet-50 font-medium text-violet-800 dark:bg-violet-950/60 dark:text-violet-200"
                       : "text-slate-500 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
                   }`}
                 >
@@ -149,7 +158,7 @@ export default function Sidebar({
         <button
           type="button"
           onClick={onAddPrompt}
-          className="flex w-full items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-violet-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-600"
         >
           <FiPlus size={18} />
           Add Prompt
