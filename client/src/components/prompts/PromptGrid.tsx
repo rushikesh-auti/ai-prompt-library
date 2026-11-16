@@ -12,6 +12,7 @@ interface PromptGridProps {
   onPin: (id: string) => void;
   onCopy: (content: string) => void;
   onDuplicate: (prompt: Prompt) => void;
+  onView: (prompt: Prompt) => void;
   onReorder?: (prompts: Prompt[]) => void;
 }
 
@@ -23,6 +24,7 @@ export default function PromptGrid({
   onPin,
   onCopy,
   onDuplicate,
+  onView,
   onReorder,
 }: PromptGridProps) {
   const [draggedId, setDraggedId] = useState<string | null>(
@@ -176,6 +178,7 @@ export default function PromptGrid({
               onPin={onPin}
               onCopy={onCopy}
               onDuplicate={onDuplicate}
+              onView={onView}
             />
           </div>
         );
