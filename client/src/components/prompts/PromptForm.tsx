@@ -83,23 +83,23 @@ export default function PromptForm({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-slate-900">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-3 backdrop-blur-sm sm:p-5">
+      <div role="dialog" aria-modal="true" aria-labelledby="prompt-form-title" className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-slate-800 sm:px-6">
           <div>
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
+            <h2 id="prompt-form-title" className="text-lg font-semibold text-slate-900 dark:text-white">
               {isEditing ? "Edit Prompt" : "Create Prompt"}
             </h2>
 
             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-              {isEditing
-                ? "Update your prompt details."
-                : "Add a new prompt to your library."}
-            </p>
-          </div>
+                {isEditing
+                  ? "Update your prompt details."
+                  : "Add a new prompt to your library."}
+              </p>
+            </div>
 
-          <button
+            <button
             type="button"
             onClick={onClose}
             className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"

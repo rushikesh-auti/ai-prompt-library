@@ -1,8 +1,8 @@
 import {
   FiCopy,
   FiEdit2,
+  FiEye,
   FiHeart,
-  FiMoreVertical,
   FiStar,
   FiTrash2,
 } from "react-icons/fi";
@@ -17,6 +17,7 @@ interface PromptCardProps {
   onPin: (id: string) => void;
   onCopy: (content: string) => void;
   onDuplicate: (prompt: Prompt) => void;
+  onView: (prompt: Prompt) => void;
 }
 
 export default function PromptCard({
@@ -27,6 +28,7 @@ export default function PromptCard({
   onPin,
   onCopy,
   onDuplicate,
+  onView,
 }: PromptCardProps) {
   return (
     <article className="group flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:border-slate-800 dark:bg-slate-900">
@@ -34,8 +36,11 @@ export default function PromptCard({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="mb-2 flex flex-wrap items-center gap-2">
-            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+            <span className="rounded-full bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700 dark:bg-violet-950/50 dark:text-violet-300">
               {prompt.category}
+            </span>
+            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+              Private
             </span>
 
             {prompt.isPinned && (
@@ -45,20 +50,10 @@ export default function PromptCard({
             )}
           </div>
 
-          <h2 className="line-clamp-2 text-lg font-semibold text-slate-900 dark:text-white">
+          <button type="button" onClick={() => onView(prompt)} className="text-left text-lg font-semibold leading-6 text-slate-900 transition hover:text-violet-700 focus-visible:outline-2 focus-visible:outline-violet-600 dark:text-white dark:hover:text-violet-300">
             {prompt.title}
-          </h2>
+          </button>
         </div>
-
-        <button
-          type="button"
-          onClick={() => onDuplicate(prompt)}
-          className="shrink-0 rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-          aria-label="Duplicate prompt"
-          title="Duplicate prompt"
-        >
-          <FiMoreVertical size={18} />
-        </button>
       </div>
 
       {/* Description */}
@@ -70,7 +65,7 @@ export default function PromptCard({
 
       {/* Prompt preview */}
       <div className="mt-4 flex-1 rounded-xl bg-slate-50 p-4 dark:bg-slate-800/70">
-        <p className="line-clamp-5 whitespace-pre-wrap text-sm leading-6 text-slate-700 dark:text-slate-200">
+        <p className="line-clamp-4 whitespace-pre-wrap text-sm leading-6 text-slate-700 dark:text-slate-200">
           {prompt.content}
         </p>
       </div>
@@ -145,11 +140,29 @@ export default function PromptCard({
         <div className="flex items-center gap-1">
           <button
             type="button"
+            onClick={() => onView(prompt)}
+            className="rounded-lg p-2 text-slate-400 transition hover:bg-violet-50 hover:text-violet-700 dark:hover:bg-violet-950/50 dark:hover:text-violet-300"
+            aria-label="View prompt details"
+          >
+            <FiEye size={17} />
+          </button>
+
+          <button
+            type="button"
             onClick={() => onEdit(prompt)}
             className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
             aria-label="Edit prompt"
           >
             <FiEdit2 size={17} />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onDuplicate(prompt)}
+            className="rounded-lg px-2 py-2 text-xs font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-slate-800 dark:hover:text-white"
+            aria-label="Duplicate prompt"
+          >
+            Duplicate
           </button>
 
           <button
