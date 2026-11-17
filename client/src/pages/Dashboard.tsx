@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import { toast } from "react-hot-toast";
 import { FiArchive, FiHeart, FiLayers, FiStar } from "react-icons/fi";
+import { useNavigate } from "react-router-dom";
 
 import DashboardLayout from "../components/layout/DashboardLayout";
 import PromptForm from "../components/prompts/PromptForm";
@@ -9,6 +10,10 @@ import PromptFilters, {
   type PromptFilter,
   type PromptSort,
 } from "../components/prompts/PromptFilters";
+import PromptDetailModal from "../components/prompts/PromptDetailModal";
+import ExplorePage from "./ExplorePage";
+import CollectionsPage from "./CollectionsPage";
+import SettingsPage from "./SettingsPage";
 
 import {
   addPrompt,
@@ -20,24 +25,37 @@ import {
   removePrompt,
   updatePromptOrder,
 } from "../features/prompts/promptSlice";
+import { logoutUser } from "../features/auth/authSlice";
+import {
+  createCollection,
+  deleteCollection,
+  getCollections,
+  updateCollection,
+} from "../services/collectionApi";
+import { useTheme } from "../hooks/useTheme";
 
 import { useAppDispatch, useAppSelector } from "../store/hooks";
 import { toPortablePromptData } from "../utils/promptStorage";
 
-import type {
-  Category,
-  CreatePromptData,
-  Prompt,
-} from "../types/prompt";
+import type { Category, CreatePromptData, ExplorePrompt, Prompt } from "../types/prompt";
+import type { CollectionInput, PromptCollection } from "../types/collection";
 
 export default function Dashboard() {
   const dispatch = useAppDispatch();
+  const navigate = useNavigate();
+  const { isDark, toggleTheme } = useTheme();
 
   const { prompts, loading, error } = useAppSelector((state) => state.prompts);
+  const { user } = useAppSelector((state) => state.auth);
 
   const [activeView, setActiveView] = useState("all");
   const [formOpen, setFormOpen] = useState(false);
   const [editingPrompt, setEditingPrompt] = useState<Prompt | null>(null);
+  const [viewedPrompt, setViewedPrompt] = useState<Prompt | null>(null);
+  const [collections, setCollections] = useState<PromptCollection[]>([]);
+  const [collectionsLoaded, setCollectionsLoaded] = useState(false);
+  const [collectionsError, setCollectionsError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
 
   //  FILTER STATE
 
@@ -50,11 +68,45 @@ export default function Dashboard() {
     dispatch(fetchPrompts());
   }, [dispatch]);
 
+  useEffect(() => {
+    if (activeView !== "collections") return;
+    let active = true;
+    getCollections()
+      .then((items) => {
+        if (active) {
+          setCollections(items);
+          setCollectionsError(null);
+        }
+      })
+      .catch((collectionError: unknown) => {
+        const message =
+          collectionError &&
+          typeof collectionError === "object" &&
+          "response" in collectionError &&
+          collectionError.response &&
+          typeof collectionError.response === "object" &&
+          "data" in collectionError.response &&
+          collectionError.response.data &&
+          typeof collectionError.response.data === "object" &&
+          "message" in collectionError.response.data
+            ? String(collectionError.response.data.message)
+            : "Unable to load your collections";
+        if (active) setCollectionsError(message);
+      })
+      .finally(() => {
+        if (active) setCollectionsLoaded(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [activeView]);
+
   //  SIDEBAR NAVIGATION
 
   const handleViewChange = (view: string) => {
     setActiveView(view);
     setSearch("");
+    setPage(1);
 
     if (view === "all") {
       setCategory("All");
@@ -74,6 +126,12 @@ export default function Dashboard() {
       return;
     }
 
+    if (view === "explore" || view === "collections" || view === "settings") {
+      setCategory("All");
+      setFilter("all");
+      return;
+    }
+
     // Category selected from sidebar
     setCategory(view as Category);
     setFilter("all");
@@ -86,9 +144,21 @@ export default function Dashboard() {
     setFormOpen(true);
   };
 
+  const handleLogout = async () => {
+    try {
+      await dispatch(logoutUser()).unwrap();
+      navigate("/login", { replace: true });
+    } catch (logoutError) {
+      toast.error(
+        typeof logoutError === "string" ? logoutError : "Unable to log out",
+      );
+    }
+  };
+
   //  EDIT PROMPT
 
   const handleEdit = (prompt: Prompt) => {
+    setViewedPrompt(null);
     setEditingPrompt(prompt);
     setFormOpen(true);
   };
@@ -119,6 +189,11 @@ export default function Dashboard() {
         toast.success("Prompt updated successfully");
       } else {
         await dispatch(addPrompt(data)).unwrap();
+        setActiveView("all");
+        setCategory("All");
+        setFilter("all");
+        setSearch("");
+        setPage(1);
 
         toast.success("Prompt created successfully");
       }
@@ -162,12 +237,15 @@ export default function Dashboard() {
     try {
       const newFavoriteState = !prompt.isFavorite;
 
-      await dispatch(
+      const updatedPrompt = await dispatch(
         favoritePrompt({
           id,
           isFavorite: newFavoriteState,
         }),
       ).unwrap();
+      setViewedPrompt((current) =>
+        current?._id === id ? updatedPrompt : current,
+      );
 
       toast.success(
         newFavoriteState ? "Added to favorites" : "Removed from favorites",
@@ -191,12 +269,15 @@ export default function Dashboard() {
     try {
       const newPinnedState = !prompt.isPinned;
 
-      await dispatch(
+      const updatedPrompt = await dispatch(
         pinPrompt({
           id,
           isPinned: newPinnedState,
         }),
       ).unwrap();
+      setViewedPrompt((current) =>
+        current?._id === id ? updatedPrompt : current,
+      );
 
       toast.success(newPinnedState ? "Prompt pinned" : "Prompt unpinned");
     } catch (error) {
@@ -228,7 +309,97 @@ export default function Dashboard() {
     }
   };
 
-    //  COPY PROMPT
+  const handleSaveExplorePrompt = async (prompt: ExplorePrompt) => {
+    try {
+      await dispatch(
+        addPrompt({
+          title: prompt.title,
+          content: prompt.content,
+          category: prompt.category,
+          tags: prompt.tags,
+          description: prompt.description,
+          isFavorite: false,
+          isPinned: false,
+        }),
+      ).unwrap();
+      toast.success("Added to your private prompts");
+    } catch (saveError) {
+      toast.error(typeof saveError === "string" ? saveError : "Could not save this prompt");
+    }
+  };
+
+  const handleCreateCollection = async (data: CollectionInput) => {
+    try {
+      const collection = await createCollection(data);
+      setCollections((current) => [collection, ...current]);
+      toast.success("Collection created");
+    } catch (collectionError) {
+      toast.error(
+        collectionError &&
+          typeof collectionError === "object" &&
+          "response" in collectionError &&
+          collectionError.response &&
+          typeof collectionError.response === "object" &&
+          "data" in collectionError.response &&
+          collectionError.response.data &&
+          typeof collectionError.response.data === "object" &&
+          "message" in collectionError.response.data
+          ? String(collectionError.response.data.message)
+          : "Could not create collection",
+      );
+    }
+  };
+
+  const handleUpdateCollection = async (
+    id: string,
+    data: Partial<CollectionInput>,
+  ) => {
+    try {
+      const collection = await updateCollection(id, data);
+      setCollections((current) =>
+        current.map((item) => item._id === id ? collection : item),
+      );
+      toast.success("Collection updated");
+    } catch (collectionError) {
+      toast.error(
+        collectionError &&
+          typeof collectionError === "object" &&
+          "response" in collectionError &&
+          collectionError.response &&
+          typeof collectionError.response === "object" &&
+          "data" in collectionError.response &&
+          collectionError.response.data &&
+          typeof collectionError.response.data === "object" &&
+          "message" in collectionError.response.data
+          ? String(collectionError.response.data.message)
+          : "Could not update collection",
+      );
+    }
+  };
+
+  const handleDeleteCollection = async (id: string) => {
+    try {
+      await deleteCollection(id);
+      setCollections((current) => current.filter((item) => item._id !== id));
+      toast.success("Collection deleted");
+    } catch (collectionError) {
+      toast.error(
+        collectionError &&
+          typeof collectionError === "object" &&
+          "response" in collectionError &&
+          collectionError.response &&
+          typeof collectionError.response === "object" &&
+          "data" in collectionError.response &&
+          collectionError.response.data &&
+          typeof collectionError.response.data === "object" &&
+          "message" in collectionError.response.data
+          ? String(collectionError.response.data.message)
+          : "Could not delete collection",
+      );
+    }
+  };
+
+  //  COPY PROMPT
 
   const handleCopy = async (content: string) => {
     try {
@@ -240,7 +411,7 @@ export default function Dashboard() {
     }
   };
 
-    //  REORDER PROMPTS
+  //  REORDER PROMPTS
 
   const handleReorder = (reorderedPrompts: Prompt[]) => {
     dispatch(updatePromptOrder(reorderedPrompts));
@@ -248,7 +419,7 @@ export default function Dashboard() {
     toast.success("Prompt order updated");
   };
 
-    //  EXPORT JSON
+  //  EXPORT JSON
 
   const handleExportJSON = () => {
     try {
@@ -289,7 +460,7 @@ export default function Dashboard() {
     }
   };
 
-    //  IMPORT JSON
+  //  IMPORT JSON
 
   const handleImportJSON = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -357,7 +528,9 @@ export default function Dashboard() {
       }
     } catch (error) {
       if (error instanceof SyntaxError) {
-        toast.error("Invalid JSON file. Please select a valid prompt library file.");
+        toast.error(
+          "Invalid JSON file. Please select a valid prompt library file.",
+        );
       } else if (typeof error === "string") {
         toast.error(error);
       } else if (
@@ -392,7 +565,7 @@ export default function Dashboard() {
     }
   };
 
-    //  FILTER + SEARCH + SORT
+  //  FILTER + SEARCH + SORT
 
   const filteredPrompts = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
@@ -454,7 +627,12 @@ export default function Dashboard() {
     });
   }, [prompts, search, category, filter, sort]);
 
-    //  STATISTICS
+  const pageSize = 12;
+  const pageCount = Math.max(1, Math.ceil(filteredPrompts.length / pageSize));
+  const currentPage = Math.min(page, pageCount);
+  const pagePrompts = filteredPrompts.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  //  STATISTICS
 
   const statistics = useMemo(() => {
     const categoryCounts = prompts.reduce(
@@ -477,7 +655,7 @@ export default function Dashboard() {
     };
   }, [prompts]);
 
-    //  CLEAR FILTERS
+  //  CLEAR FILTERS
 
   const handleClearFilters = () => {
     setSearch("");
@@ -485,38 +663,87 @@ export default function Dashboard() {
     setFilter("all");
     setSort("newest");
     setActiveView("all");
+    setPage(1);
   };
 
-    //  RENDER
+  //  RENDER
+
+  const layoutProps = {
+    search,
+    onSearchChange: (value: string) => { setPage(1); setSearch(value); },
+    onAddPrompt: handleAddPrompt,
+    activeView,
+    onViewChange: handleViewChange,
+    isDark,
+    onThemeToggle: toggleTheme,
+  };
+
+  if (activeView === "explore") {
+    return (
+      <>
+        <DashboardLayout {...layoutProps}>
+          <ExplorePage
+            search={search}
+            onSave={handleSaveExplorePrompt}
+          />
+        </DashboardLayout>
+        {formOpen && <PromptForm prompt={editingPrompt} loading={loading} onSubmit={handleSubmit} onClose={handleCloseForm} />}
+      </>
+    );
+  }
+
+  if (activeView === "collections") {
+    return (
+      <>
+        <DashboardLayout {...layoutProps}>
+          <CollectionsPage
+            collections={collections}
+            prompts={prompts}
+            loading={!collectionsLoaded}
+            error={collectionsError}
+            onCreate={handleCreateCollection}
+            onUpdate={handleUpdateCollection}
+            onDelete={handleDeleteCollection}
+          />
+        </DashboardLayout>
+        {formOpen && <PromptForm prompt={editingPrompt} loading={loading} onSubmit={handleSubmit} onClose={handleCloseForm} />}
+      </>
+    );
+  }
+
+  if (activeView === "settings") {
+    return (
+      <DashboardLayout {...layoutProps}>
+        <SettingsPage
+          user={user}
+          isDark={isDark}
+          onThemeToggle={toggleTheme}
+          onLogout={handleLogout}
+        />
+      </DashboardLayout>
+    );
+  }
 
   return (
     <>
-      <DashboardLayout
-        search={search}
-        onSearchChange={(value) => {
-          setSearch(value);
-
-          if (value.trim()) {
-            setActiveView("all");
-            setCategory("All");
-            setFilter("all");
-          }
-        }}
-        onAddPrompt={handleAddPrompt}
-        activeView={activeView}
-        onViewChange={handleViewChange}
-      >
+      <DashboardLayout {...layoutProps}>
         <div className="mx-auto max-w-7xl">
-              {/* PAGE HEADER */}
+          {/* PAGE HEADER */}
 
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-3xl">
-                Your Prompt Library
+                {category !== "All"
+                  ? category
+                  : filter === "favorites"
+                    ? "Favorite prompts"
+                    : filter === "pinned"
+                      ? "Pinned prompts"
+                      : "My prompts"}
               </h1>
 
-              <p className="mt-2 max-w-xl text-sm leading-6 text-slate-500">
-                Your reusable AI workflows, organized and ready when you need them.
+              <p className="mt-2 max-w-xl text-sm leading-6 text-slate-500 dark:text-slate-400">
+                Your private AI workflows, organized and ready when you need them.
               </p>
             </div>
 
@@ -551,7 +778,7 @@ export default function Dashboard() {
               <button
                 type="button"
                 onClick={handleAddPrompt}
-                className="col-span-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 sm:col-span-1 sm:py-2.5"
+                className="col-span-2 rounded-xl bg-violet-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-violet-700 sm:col-span-1 sm:py-2.5"
               >
                 + Add Prompt
               </button>
@@ -564,44 +791,60 @@ export default function Dashboard() {
             {/* Total */}
 
             <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 dark:border-slate-800 dark:bg-slate-900">
-              <div className="flex items-center justify-between"><p className="text-xs font-semibold text-slate-500 sm:text-sm">
-                Total Prompts
-              </p><FiArchive className="text-slate-400" size={18} /></div>
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-slate-500 sm:text-sm">
+                  Total Prompts
+                </p>
+                <FiArchive className="text-slate-400" size={18} />
+              </div>
 
               <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-white">
-                {statistics.total}
+                {(loading || error) && prompts.length === 0 ? "—" : statistics.total}
               </p>
             </div>
 
             {/* Favorites */}
 
             <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 dark:border-slate-800 dark:bg-slate-900">
-              <div className="flex items-center justify-between"><p className="text-xs font-semibold text-slate-500 sm:text-sm">Favorites</p><FiHeart className="text-slate-400" size={18} /></div>
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-slate-500 sm:text-sm">
+                  Favorites
+                </p>
+                <FiHeart className="text-slate-400" size={18} />
+              </div>
 
               <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-white">
-                {statistics.favorites}
+                {(loading || error) && prompts.length === 0 ? "—" : statistics.favorites}
               </p>
             </div>
 
             {/* Pinned */}
 
             <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 dark:border-slate-800 dark:bg-slate-900">
-              <div className="flex items-center justify-between"><p className="text-xs font-semibold text-slate-500 sm:text-sm">Pinned</p><FiStar className="text-slate-400" size={18} /></div>
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-slate-500 sm:text-sm">
+                  Pinned
+                </p>
+                <FiStar className="text-slate-400" size={18} />
+              </div>
 
               <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-white">
-                {statistics.pinned}
+                {(loading || error) && prompts.length === 0 ? "—" : statistics.pinned}
               </p>
             </div>
 
             {/* Categories */}
 
             <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 dark:border-slate-800 dark:bg-slate-900">
-              <div className="flex items-center justify-between"><p className="text-xs font-semibold text-slate-500 sm:text-sm">
-                Categories Used
-              </p><FiLayers className="text-slate-400" size={18} /></div>
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-slate-500 sm:text-sm">
+                  Categories Used
+                </p>
+                <FiLayers className="text-slate-400" size={18} />
+              </div>
 
               <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-white">
-                {statistics.categories}
+                {(loading || error) && prompts.length === 0 ? "—" : statistics.categories}
               </p>
             </div>
           </div>
@@ -620,8 +863,11 @@ export default function Dashboard() {
             {/* Error */}
 
             {!loading && error && (
-              <div className="rounded-2xl border border-red-200 bg-red-50 p-6 dark:border-red-900/60 dark:bg-red-950/40">
-                <p className="text-sm font-medium text-red-700 dark:text-red-300">{error}</p>
+              <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-6 dark:border-red-900/60 dark:bg-red-950/40">
+                <p className="text-sm font-medium text-red-700 dark:text-red-300">
+                  {error}
+                </p>
+                <button type="button" onClick={() => dispatch(fetchPrompts())} className="mt-3 text-sm font-semibold text-red-800 underline dark:text-red-200">Try again</button>
               </div>
             )}
 
@@ -638,6 +884,7 @@ export default function Dashboard() {
                   sort={sort}
                   onSearchChange={(value) => {
                     setSearch(value);
+                    setPage(1);
 
                     if (value.trim()) {
                       setActiveView("all");
@@ -649,6 +896,7 @@ export default function Dashboard() {
                     setCategory(value);
                     setFilter("all");
                     setSearch("");
+                    setPage(1);
 
                     setActiveView(value === "All" ? "all" : value);
                   }}
@@ -656,10 +904,11 @@ export default function Dashboard() {
                     setFilter(value);
                     setCategory("All");
                     setSearch("");
+                    setPage(1);
 
                     setActiveView(value);
                   }}
-                  onSortChange={setSort}
+                  onSortChange={(value) => { setSort(value); setPage(1); }}
                   onClear={handleClearFilters}
                 />
 
@@ -687,15 +936,23 @@ export default function Dashboard() {
                 {/* Prompt Grid */}
 
                 <PromptGrid
-                  prompts={filteredPrompts}
+                  prompts={pagePrompts}
                   onEdit={handleEdit}
                   onDelete={handleDelete}
                   onFavorite={handleFavorite}
                   onPin={handlePin}
                   onCopy={handleCopy}
                   onDuplicate={handleDuplicate}
+                  onView={setViewedPrompt}
                   onReorder={handleReorder}
                 />
+                {pageCount > 1 && (
+                  <nav aria-label="Prompt pages" className="mt-7 flex items-center justify-center gap-3">
+                    <button type="button" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">Previous</button>
+                    <span className="text-sm text-slate-500">Page {currentPage} of {pageCount}</span>
+                    <button type="button" disabled={currentPage === pageCount} onClick={() => setPage(currentPage + 1)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">Next</button>
+                  </nav>
+                )}
               </>
             )}
           </div>
@@ -710,6 +967,17 @@ export default function Dashboard() {
           loading={loading}
           onSubmit={handleSubmit}
           onClose={handleCloseForm}
+        />
+      )}
+      {viewedPrompt && (
+        <PromptDetailModal
+          prompt={prompts.find((prompt) => prompt._id === viewedPrompt._id) || viewedPrompt}
+          onClose={() => setViewedPrompt(null)}
+          onCopy={handleCopy}
+          onDuplicate={(prompt) => { setViewedPrompt(null); void handleDuplicate(prompt); }}
+          onEdit={handleEdit}
+          onFavorite={(id) => void handleFavorite(id)}
+          onPin={(id) => void handlePin(id)}
         />
       )}
     </>

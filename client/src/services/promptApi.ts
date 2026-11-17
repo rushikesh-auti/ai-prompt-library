@@ -1,4 +1,4 @@
-import axios from "axios";
+import { apiClient } from "./apiClient";
 
 import type {
   CreatePromptData,
@@ -7,29 +7,20 @@ import type {
   UpdatePromptData,
 } from "../types/prompt";
 
-const API_URL = import.meta.env.VITE_API_URL;
-
-const promptApi = axios.create({
-  baseURL: `${API_URL}/prompts`,
-  headers: {
-    "Content-Type": "application/json",
-  },
-});
+const promptApi = apiClient;
 
 export const getPrompts = async (): Promise<Prompt[]> => {
-  const response = await promptApi.get("/");
+  const response = await promptApi.get("/prompts");
   return response.data.data;
 };
 
 export const getPrompt = async (id: string): Promise<Prompt> => {
-  const response = await promptApi.get(`/${id}`);
+  const response = await promptApi.get(`/prompts/${id}`);
   return response.data.data;
 };
 
-export const createPrompt = async (
-  data: CreatePromptData,
-): Promise<Prompt> => {
-  const response = await promptApi.post("/", data);
+export const createPrompt = async (data: CreatePromptData): Promise<Prompt> => {
+  const response = await promptApi.post("/prompts", data);
 
   return response.data.data;
 };
@@ -37,7 +28,7 @@ export const createPrompt = async (
 export const importPrompts = async (
   data: unknown,
 ): Promise<PromptImportSummary> => {
-  const response = await promptApi.post("/import", data);
+  const response = await promptApi.post("/prompts/import", data);
 
   return response.data.data;
 };
@@ -46,11 +37,11 @@ export const updatePrompt = async (
   id: string,
   data: UpdatePromptData,
 ): Promise<Prompt> => {
-  const response = await promptApi.put(`/${id}`, data);
+  const response = await promptApi.put(`/prompts/${id}`, data);
 
   return response.data.data;
 };
 
 export const deletePrompt = async (id: string): Promise<void> => {
-  await promptApi.delete(`/${id}`);
+  await promptApi.delete(`/prompts/${id}`);
 };

@@ -25,37 +25,8 @@ interface PromptState {
   error: string | null;
 }
 
-const STORAGE_KEY = "ai-prompt-library-prompts";
-
-const loadPromptsFromStorage = (): Prompt[] => {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-
-    if (!stored) {
-      return [];
-    }
-
-    const parsed = JSON.parse(stored);
-
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-};
-
-const savePromptsToStorage = (prompts: Prompt[]) => {
-  try {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify(prompts)
-    );
-  } catch {
-    // Ignore LocalStorage errors
-  }
-};
-
 const initialState: PromptState = {
-  prompts: loadPromptsFromStorage(),
+  prompts: [],
   loading: false,
   error: null,
 };
@@ -77,22 +48,19 @@ export const fetchPrompts = createAsyncThunk(
     } catch (error: unknown) {
       return rejectWithValue(getErrorMessage(error, "Failed to fetch prompts"));
     }
-  }
+  },
 );
 
 // Create prompt
 export const addPrompt = createAsyncThunk(
   "prompts/addPrompt",
-  async (
-    data: CreatePromptData,
-    { rejectWithValue }
-  ) => {
+  async (data: CreatePromptData, { rejectWithValue }) => {
     try {
       return await createPrompt(data);
     } catch (error: unknown) {
       return rejectWithValue(getErrorMessage(error, "Failed to create prompt"));
     }
-  }
+  },
 );
 
 // Update prompt
@@ -106,14 +74,14 @@ export const editPrompt = createAsyncThunk(
       id: string;
       data: UpdatePromptData;
     },
-    { rejectWithValue }
+    { rejectWithValue },
   ) => {
     try {
       return await updatePrompt(id, data);
     } catch (error: unknown) {
       return rejectWithValue(getErrorMessage(error, "Failed to update prompt"));
     }
-  }
+  },
 );
 
 // Delete prompt
@@ -127,7 +95,7 @@ export const removePrompt = createAsyncThunk(
     } catch (error: unknown) {
       return rejectWithValue(getErrorMessage(error, "Failed to delete prompt"));
     }
-  }
+  },
 );
 
 export const importPrompts = createAsyncThunk(
@@ -157,16 +125,18 @@ export const favoritePrompt = createAsyncThunk(
       id: string;
       isFavorite: boolean;
     },
-    { rejectWithValue }
+    { rejectWithValue },
   ) => {
     try {
       return await updatePrompt(id, {
         isFavorite,
       });
     } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error, "Failed to update favorite"));
+      return rejectWithValue(
+        getErrorMessage(error, "Failed to update favorite"),
+      );
     }
-  }
+  },
 );
 
 // Toggle pin
@@ -180,7 +150,7 @@ export const pinPrompt = createAsyncThunk(
       id: string;
       isPinned: boolean;
     },
-    { rejectWithValue }
+    { rejectWithValue },
   ) => {
     try {
       return await updatePrompt(id, {
@@ -189,7 +159,7 @@ export const pinPrompt = createAsyncThunk(
     } catch (error: unknown) {
       return rejectWithValue(getErrorMessage(error, "Failed to update pin"));
     }
-  }
+  },
 );
 
 const promptSlice = createSlice({
@@ -202,15 +172,9 @@ const promptSlice = createSlice({
     },
 
     // Drag & drop reorder
-    updatePromptOrder: (
-      state,
-      action: PayloadAction<Prompt[]>
-    ) => {
+    updatePromptOrder: (state, action: PayloadAction<Prompt[]>) => {
       state.prompts = action.payload;
-
-      savePromptsToStorage(state.prompts);
     },
-
   },
 
   extraReducers: (builder) => {
@@ -223,25 +187,15 @@ const promptSlice = createSlice({
         state.error = null;
       })
 
-      .addCase(
-        fetchPrompts.fulfilled,
-        (state, action) => {
-          state.loading = false;
-          state.prompts = action.payload;
+      .addCase(fetchPrompts.fulfilled, (state, action) => {
+        state.loading = false;
+        state.prompts = action.payload;
+      })
 
-          savePromptsToStorage(state.prompts);
-        }
-      )
-
-      .addCase(
-        fetchPrompts.rejected,
-        (state, action) => {
-          state.loading = false;
-          state.error =
-            (action.payload as string) ||
-            "Failed to fetch prompts";
-        }
-      );
+      .addCase(fetchPrompts.rejected, (state, action) => {
+        state.loading = false;
+        state.error = (action.payload as string) || "Failed to fetch prompts";
+      });
 
     builder
       .addCase(importPrompts.pending, (state) => {
@@ -251,7 +205,6 @@ const promptSlice = createSlice({
       .addCase(importPrompts.fulfilled, (state, action) => {
         state.loading = false;
         state.prompts = [...action.payload.prompts, ...state.prompts];
-        savePromptsToStorage(state.prompts);
       })
       .addCase(importPrompts.rejected, (state, action) => {
         state.loading = false;
@@ -270,26 +223,16 @@ const promptSlice = createSlice({
         state.error = null;
       })
 
-      .addCase(
-        addPrompt.fulfilled,
-        (state, action) => {
-          state.loading = false;
+      .addCase(addPrompt.fulfilled, (state, action) => {
+        state.loading = false;
 
-          state.prompts.unshift(action.payload);
+        state.prompts.unshift(action.payload);
+      })
 
-          savePromptsToStorage(state.prompts);
-        }
-      )
-
-      .addCase(
-        addPrompt.rejected,
-        (state, action) => {
-          state.loading = false;
-          state.error =
-            (action.payload as string) ||
-            "Failed to create prompt";
-        }
-      );
+      .addCase(addPrompt.rejected, (state, action) => {
+        state.loading = false;
+        state.error = (action.payload as string) || "Failed to create prompt";
+      });
 
     // =========================
     // Update
@@ -300,33 +243,22 @@ const promptSlice = createSlice({
         state.error = null;
       })
 
-      .addCase(
-        editPrompt.fulfilled,
-        (state, action) => {
-          state.loading = false;
+      .addCase(editPrompt.fulfilled, (state, action) => {
+        state.loading = false;
 
-          const index = state.prompts.findIndex(
-            (prompt) =>
-              prompt._id === action.payload._id
-          );
+        const index = state.prompts.findIndex(
+          (prompt) => prompt._id === action.payload._id,
+        );
 
-          if (index !== -1) {
-            state.prompts[index] = action.payload;
-
-            savePromptsToStorage(state.prompts);
-          }
+        if (index !== -1) {
+          state.prompts[index] = action.payload;
         }
-      )
+      })
 
-      .addCase(
-        editPrompt.rejected,
-        (state, action) => {
-          state.loading = false;
-          state.error =
-            (action.payload as string) ||
-            "Failed to update prompt";
-        }
-      );
+      .addCase(editPrompt.rejected, (state, action) => {
+        state.loading = false;
+        state.error = (action.payload as string) || "Failed to update prompt";
+      });
 
     // =========================
     // Delete
@@ -337,99 +269,57 @@ const promptSlice = createSlice({
         state.error = null;
       })
 
-      .addCase(
-        removePrompt.fulfilled,
-        (state, action) => {
-          state.loading = false;
+      .addCase(removePrompt.fulfilled, (state, action) => {
+        state.loading = false;
 
-          state.prompts = state.prompts.filter(
-            (prompt) =>
-              prompt._id !== action.payload
-          );
+        state.prompts = state.prompts.filter(
+          (prompt) => prompt._id !== action.payload,
+        );
+      })
 
-          savePromptsToStorage(state.prompts);
-        }
-      )
-
-      .addCase(
-        removePrompt.rejected,
-        (state, action) => {
-          state.loading = false;
-          state.error =
-            (action.payload as string) ||
-            "Failed to delete prompt";
-        }
-      );
+      .addCase(removePrompt.rejected, (state, action) => {
+        state.loading = false;
+        state.error = (action.payload as string) || "Failed to delete prompt";
+      });
 
     // =========================
     // Favorite
     // =========================
     builder
-      .addCase(
-        favoritePrompt.fulfilled,
-        (state, action) => {
-          const index = state.prompts.findIndex(
-            (prompt) =>
-              prompt._id === action.payload._id
-          );
+      .addCase(favoritePrompt.fulfilled, (state, action) => {
+        const index = state.prompts.findIndex(
+          (prompt) => prompt._id === action.payload._id,
+        );
 
-          if (index !== -1) {
-            state.prompts[index] =
-              action.payload;
-
-            savePromptsToStorage(
-              state.prompts
-            );
-          }
+        if (index !== -1) {
+          state.prompts[index] = action.payload;
         }
-      )
+      })
 
-      .addCase(
-        favoritePrompt.rejected,
-        (state, action) => {
-          state.error =
-            (action.payload as string) ||
-            "Failed to update favorite";
-        }
-      );
+      .addCase(favoritePrompt.rejected, (state, action) => {
+        state.error = (action.payload as string) || "Failed to update favorite";
+      });
 
     // =========================
     // Pin
     // =========================
     builder
-      .addCase(
-        pinPrompt.fulfilled,
-        (state, action) => {
-          const index = state.prompts.findIndex(
-            (prompt) =>
-              prompt._id === action.payload._id
-          );
+      .addCase(pinPrompt.fulfilled, (state, action) => {
+        const index = state.prompts.findIndex(
+          (prompt) => prompt._id === action.payload._id,
+        );
 
-          if (index !== -1) {
-            state.prompts[index] =
-              action.payload;
-
-            savePromptsToStorage(
-              state.prompts
-            );
-          }
+        if (index !== -1) {
+          state.prompts[index] = action.payload;
         }
-      )
+      })
 
-      .addCase(
-        pinPrompt.rejected,
-        (state, action) => {
-          state.error =
-            (action.payload as string) ||
-            "Failed to update pin";
-        }
-      );
+      .addCase(pinPrompt.rejected, (state, action) => {
+        state.error = (action.payload as string) || "Failed to update pin";
+      });
   },
 });
 
-export const {
-  clearPromptError,
-  updatePromptOrder,
-} = promptSlice.actions;
+export const { clearPromptError, updatePromptOrder } = promptSlice.actions;
 
 export default promptSlice.reducer;

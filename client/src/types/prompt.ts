@@ -25,7 +25,14 @@ export interface Prompt {
   order: number;
   createdAt: string;
   updatedAt: string;
+  visibility?: "private" | "public";
+  isSample?: boolean;
 }
+
+export type ExplorePrompt = Pick<
+  Prompt,
+  "_id" | "title" | "content" | "category" | "tags" | "description" | "createdAt" | "updatedAt" | "isSample" | "visibility"
+>;
 
 export interface CreatePromptData {
   title: string;
