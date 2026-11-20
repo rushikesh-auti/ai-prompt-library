@@ -17,6 +17,8 @@
   background: #f8fafc;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 * {
@@ -33,6 +35,19 @@ body {
   min-height: 100vh;
   background: #f8fafc;
   transition: background-color 200ms ease, color 200ms ease;
+}
+
+::selection {
+  color: #fff;
+  background: #7c3aed;
+}
+
+button,
+a,
+input,
+textarea,
+select {
+  -webkit-tap-highlight-color: transparent;
 }
 
 html.dark,
