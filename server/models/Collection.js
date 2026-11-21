@@ -16,6 +16,12 @@ const collectionSchema = new mongoose.Schema(
       minlength: 2,
       maxlength: 60,
     },
+    kind: {
+      type: String,
+      enum: ["collection", "folder"],
+      default: "collection",
+      immutable: true,
+    },
     description: {
       type: String,
       trim: true,
@@ -31,5 +37,6 @@ const collectionSchema = new mongoose.Schema(
 );
 
 collectionSchema.index({ owner: 1, name: 1 }, { unique: true });
+collectionSchema.index({ owner: 1, kind: 1, name: 1 });
 
 module.exports = mongoose.model("Collection", collectionSchema);

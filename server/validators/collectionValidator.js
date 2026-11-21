@@ -2,6 +2,7 @@ const { z } = require("zod");
 
 const fields = {
   name: z.string().trim().min(2, "Name must be at least 2 characters").max(60),
+  kind: z.enum(["collection", "folder"]).default("collection"),
   description: z.string().trim().max(200).default(""),
   prompts: z
     .array(z.string().regex(/^[a-f\d]{24}$/i, "Prompt ID is invalid"))
