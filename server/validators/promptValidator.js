@@ -57,6 +57,34 @@ const importPromptsSchema = z
   .array(importPromptSchema)
   .min(1, "Import file must contain at least one prompt")
   .max(500, "Import cannot contain more than 500 prompts");
+const promptQuerySchema = z.object({
+  search: z.string().trim().max(200).optional(),
+  category: z.enum(CATEGORIES).optional(),
+  favorite: z.enum(["true", "false"]).optional(),
+  pinned: z.enum(["true", "false"]).optional(),
+  folderId: z.string().regex(/^[a-f\d]{24}$/i, "Folder ID is invalid").optional(),
+  sort: z.enum(["manual", "newest", "oldest", "updated", "title-asc", "title-desc"]).optional(),
+  page: z.coerce.number().int().min(1).optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+  all: z.enum(["true", "false"]).optional(),
+}).strict();
+const reorderPromptsSchema = z.object({
+  ids: z.array(z.string().regex(/^[a-f\d]{24}$/i, "Prompt ID is invalid"))
+    .min(1).max(100).refine((ids) => new Set(ids).size === ids.length, "Prompt IDs must be unique"),
+}).strict();
+const bulkPromptsSchema = z.discriminatedUnion("action", [
+  z.object({
+    ids: z.array(z.string().regex(/^[a-f\d]{24}$/i)).min(1).max(500)
+      .refine((ids) => new Set(ids).size === ids.length, "Prompt IDs must be unique"),
+    action: z.enum(["favorite", "unfavorite", "trash", "restore", "permanentDelete"]),
+  }).strict(),
+  z.object({
+    ids: z.array(z.string().regex(/^[a-f\d]{24}$/i)).min(1).max(500)
+      .refine((ids) => new Set(ids).size === ids.length, "Prompt IDs must be unique"),
+    action: z.literal("moveToFolder"),
+    folderId: z.string().regex(/^[a-f\d]{24}$/i, "Folder ID is invalid").nullable(),
+  }).strict(),
+]);
 const formatZodIssues = (issues) =>
   issues.map((issue) => ({
     field: issue.path.join(".") || "body",
@@ -67,5 +95,8 @@ module.exports = {
   createPromptSchema,
   updatePromptSchema,
   importPromptsSchema,
+  promptQuerySchema,
+  reorderPromptsSchema,
+  bulkPromptsSchema,
   formatZodIssues,
 };
