@@ -72,6 +72,16 @@ const promptSchema = new mongoose.Schema(
       default: false,
     },
 
+    isDeleted: {
+      type: Boolean,
+      default: false,
+    },
+
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
+
     order: {
       type: Number,
       default: 0,
@@ -83,7 +93,10 @@ const promptSchema = new mongoose.Schema(
   },
 );
 
-promptSchema.index({ owner: 1, isPinned: -1, order: 1, createdAt: -1 });
+promptSchema.index({ owner: 1, isDeleted: 1, isPinned: -1, order: 1, createdAt: -1 });
+promptSchema.index({ owner: 1, isDeleted: 1, createdAt: -1 });
+promptSchema.index({ owner: 1, isDeleted: 1, updatedAt: -1 });
+promptSchema.index({ owner: 1, isDeleted: 1, title: 1 });
 promptSchema.index({ visibility: 1, category: 1, createdAt: -1 });
 promptSchema.index({ title: "text", description: "text", tags: "text" });
 
