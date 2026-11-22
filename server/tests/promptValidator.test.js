@@ -1,4 +1,11 @@
-const { createPromptSchema, updatePromptSchema, importPromptsSchema } = require("../validators/promptValidator");
+const {
+  createPromptSchema,
+  updatePromptSchema,
+  importPromptsSchema,
+  promptQuerySchema,
+  reorderPromptsSchema,
+  bulkPromptsSchema,
+} = require("../validators/promptValidator");
 
 const validPrompt = { title: "React Code Review", content: "Review this React component and suggest improvements.", category: "Coding", tags: ["react"], description: "A review prompt" };
 
@@ -20,5 +27,27 @@ describe("prompt validators", () => {
     const parsed = importPromptsSchema.parse([{ ...validPrompt, _id: "legacy-id", createdAt: "old" }]);
     expect(parsed[0]).not.toHaveProperty("_id");
     expect(importPromptsSchema.safeParse([]).success).toBe(false);
+  });
+  test("validates paginated search, reordering, and bulk actions", () => {
+    expect(
+      promptQuerySchema.safeParse({
+        page: "2",
+        limit: "20",
+        search: "email",
+      }).success,
+    ).toBe(true);
+    expect(promptQuerySchema.safeParse({ page: "0" }).success).toBe(false);
+    expect(
+      reorderPromptsSchema.safeParse({
+        ids: ["507f1f77bcf86cd799439011"],
+      }).success,
+    ).toBe(true);
+    expect(
+      bulkPromptsSchema.safeParse({
+        ids: ["507f1f77bcf86cd799439011"],
+        action: "moveToFolder",
+        folderId: null,
+      }).success,
+    ).toBe(true);
   });
 });

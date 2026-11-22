@@ -7,7 +7,7 @@ jest.mock("../middleware/csrfProtection", () => {
   return bypass;
 });
 jest.mock("../services/promptService", () => ({
-  getAll: jest.fn(), getSummary: jest.fn(), explore: jest.fn(), getById: jest.fn(), create: jest.fn(), update: jest.fn(), remove: jest.fn(), importMany: jest.fn(),
+  getAll: jest.fn(), getTrash: jest.fn(), getSummary: jest.fn(), explore: jest.fn(), getById: jest.fn(), create: jest.fn(), update: jest.fn(), remove: jest.fn(), restore: jest.fn(), permanentlyRemove: jest.fn(), reorder: jest.fn(), bulkAction: jest.fn(), importMany: jest.fn(),
 }));
 const service = require("../services/promptService");
 jest.mock("../services/collectionService", () => ({
@@ -41,7 +41,7 @@ describe("prompt API integration", () => {
       .expect((response) => expect(response.body.data._id).toBe(id));
     await request(app)
       .delete(`/api/prompts/${id}`)
-      .expect(200, { success: true, message: "Prompt deleted successfully" });
+      .expect(200, { success: true, message: "Prompt moved to Trash" });
     expect(service.remove).toHaveBeenCalledWith(
       id,
       "507f1f77bcf86cd799439011",
@@ -77,9 +77,82 @@ describe("prompt API integration", () => {
     });
     await request(app).post("/api/collections").send({ name: "Writing" }).expect(201);
     expect(collectionService.create).toHaveBeenCalledWith(
-      { name: "Writing", description: "", prompts: [] },
+      { name: "Writing", description: "", kind: "collection", prompts: [] },
       "507f1f77bcf86cd799439011",
     );
+    collectionService.create.mockResolvedValue({
+      _id: id,
+      name: "Drafts",
+      kind: "folder",
+      prompts: [],
+    });
+    await request(app)
+      .post("/api/collections")
+      .send({ name: "Drafts", kind: "folder" })
+      .expect(201);
+    expect(collectionService.create).toHaveBeenLastCalledWith(
+      { name: "Drafts", kind: "folder", description: "", prompts: [] },
+      "507f1f77bcf86cd799439011",
+    );
+  });
+  test("returns paginated prompt search results", async () => {
+    const prompts = [{ _id: id, ...validPrompt }];
+    service.getAll.mockResolvedValue({
+      prompts,
+      total: 17,
+      page: 2,
+      limit: 5,
+      pages: 4,
+    });
+    const response = await request(app)
+      .get("/api/prompts?search=react&page=2&limit=5&sort=updated")
+      .expect(200);
+    expect(response.body).toMatchObject({
+      count: 17,
+      data: prompts,
+      pagination: { page: 2, limit: 5, pages: 4 },
+    });
+    expect(service.getAll).toHaveBeenCalledWith(
+      "507f1f77bcf86cd799439011",
+      { search: "react", page: 2, limit: 5, sort: "updated" },
+    );
+  });
+  test("rejects invalid prompt query parameters", async () => {
+    await request(app).get("/api/prompts?page=0&limit=1000").expect(400);
+  });
+  test("validates and delegates authenticated bulk prompt actions", async () => {
+    service.bulkAction.mockResolvedValue({ affected: 1 });
+    await request(app)
+      .post("/api/prompts/bulk")
+      .send({ ids: [id], action: "favorite" })
+      .expect(200, { success: true, data: { affected: 1 } });
+    expect(service.bulkAction).toHaveBeenCalledWith(
+      { ids: [id], action: "favorite" },
+      "507f1f77bcf86cd799439011",
+    );
+    await request(app)
+      .post("/api/prompts/bulk")
+      .send({ ids: [id], action: "moveToFolder" })
+      .expect(400);
+  });
+  test("exposes authenticated trash, restore, and permanent-delete actions", async () => {
+    service.getTrash.mockResolvedValue({
+      prompts: [{ _id: id, ...validPrompt }],
+      total: 1,
+      page: 1,
+      limit: 12,
+      pages: 1,
+    });
+    service.restore.mockResolvedValue({ _id: id, ...validPrompt });
+    service.permanentlyRemove.mockResolvedValue();
+    await request(app).get("/api/prompts/trash?page=1").expect(200).expect((response) => {
+      expect(response.body.data).toHaveLength(1);
+      expect(response.body.pagination.total).toBe(1);
+    });
+    await request(app).post(`/api/prompts/${id}/restore`).expect(200);
+    await request(app).delete(`/api/prompts/${id}/permanent`).expect(200);
+    expect(service.restore).toHaveBeenCalledWith(id, "507f1f77bcf86cd799439011");
+    expect(service.permanentlyRemove).toHaveBeenCalledWith(id, "507f1f77bcf86cd799439011");
   });
   test("rejects malformed collection references and IDs", async () => {
     await request(app).post("/api/collections").send({ name: "Writing", prompts: ["not-an-id"] }).expect(400);
