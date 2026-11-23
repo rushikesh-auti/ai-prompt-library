@@ -23,6 +23,8 @@ export interface Prompt {
   isFavorite: boolean;
   isPinned: boolean;
   order: number;
+  isDeleted?: boolean;
+  deletedAt?: string | null;
   createdAt: string;
   updatedAt: string;
   visibility?: "private" | "public";
@@ -58,3 +60,49 @@ export interface PromptImportSummary {
 }
 
 export type UpdatePromptData = Partial<CreatePromptData>;
+
+export type PromptSort =
+  | "manual"
+  | "newest"
+  | "oldest"
+  | "updated"
+  | "title-asc"
+  | "title-desc";
+
+export interface PromptQuery {
+  search?: string;
+  category?: Category;
+  favorite?: boolean;
+  pinned?: boolean;
+  folderId?: string;
+  sort?: PromptSort;
+  page?: number;
+  limit?: number;
+  all?: boolean;
+}
+
+export interface PromptPage {
+  prompts: Prompt[];
+  total: number;
+  page: number;
+  limit: number;
+  pages: number;
+}
+
+export interface PromptSummary {
+  total: number;
+  favorites: number;
+  pinned: number;
+  categories: number;
+}
+
+export type BulkPromptAction =
+  | {
+      ids: string[];
+      action: "favorite" | "unfavorite" | "trash" | "restore" | "permanentDelete";
+    }
+  | {
+      ids: string[];
+      action: "moveToFolder";
+      folderId: string | null;
+    };
