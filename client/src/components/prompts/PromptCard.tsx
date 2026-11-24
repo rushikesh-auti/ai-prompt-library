@@ -18,6 +18,11 @@ interface PromptCardProps {
   onCopy: (content: string) => void;
   onDuplicate: (prompt: Prompt) => void;
   onView: (prompt: Prompt) => void;
+  selected: boolean;
+  onSelect: (id: string, selected: boolean) => void;
+  trashMode?: boolean;
+  onRestore?: (id: string) => void;
+  onPermanentDelete?: (id: string) => void;
 }
 
 export default function PromptCard({
@@ -29,6 +34,11 @@ export default function PromptCard({
   onCopy,
   onDuplicate,
   onView,
+  selected,
+  onSelect,
+  trashMode = false,
+  onRestore,
+  onPermanentDelete,
 }: PromptCardProps) {
   return (
     <article className="group flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:border-slate-800 dark:bg-slate-900">
@@ -48,12 +58,30 @@ export default function PromptCard({
                 Pinned
               </span>
             )}
+            {trashMode && (
+              <span className="rounded-full bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700 dark:bg-red-950/50 dark:text-red-300">
+                In Trash
+              </span>
+            )}
           </div>
 
-          <button type="button" onClick={() => onView(prompt)} className="text-left text-lg font-semibold leading-6 text-slate-900 transition hover:text-violet-700 focus-visible:outline-2 focus-visible:outline-violet-600 dark:text-white dark:hover:text-violet-300">
-            {prompt.title}
-          </button>
+          {trashMode ? (
+            <span className="text-lg font-semibold leading-6 text-slate-900 dark:text-white">
+              {prompt.title}
+            </span>
+          ) : (
+            <button type="button" onClick={() => onView(prompt)} className="text-left text-lg font-semibold leading-6 text-slate-900 transition hover:text-violet-700 focus-visible:outline-2 focus-visible:outline-violet-600 dark:text-white dark:hover:text-violet-300">
+              {prompt.title}
+            </button>
+          )}
         </div>
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={(event) => onSelect(prompt._id, event.target.checked)}
+          aria-label={`Select ${prompt.title}`}
+          className="mt-1 h-4 w-4 shrink-0 accent-violet-600"
+        />
       </div>
 
       {/* Description */}
@@ -86,6 +114,25 @@ export default function PromptCard({
 
       {/* Actions */}
       <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-4 dark:border-slate-800">
+        {trashMode ? (
+          <div className="ml-auto flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => onRestore?.(prompt._id)}
+              className="rounded-lg px-3 py-2 text-sm font-medium text-violet-700 hover:bg-violet-50 dark:text-violet-300 dark:hover:bg-violet-950/50"
+            >
+              Restore
+            </button>
+            <button
+              type="button"
+              onClick={() => onPermanentDelete?.(prompt._id)}
+              className="rounded-lg px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/50"
+            >
+              Delete permanently
+            </button>
+          </div>
+        ) : (
+          <>
         <div className="flex items-center gap-1">
           <button
             type="button"
@@ -174,6 +221,8 @@ export default function PromptCard({
             <FiTrash2 size={17} />
           </button>
         </div>
+          </>
+        )}
       </div>
     </article>
   );

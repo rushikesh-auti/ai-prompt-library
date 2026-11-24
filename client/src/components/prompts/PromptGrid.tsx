@@ -14,6 +14,12 @@ interface PromptGridProps {
   onDuplicate: (prompt: Prompt) => void;
   onView: (prompt: Prompt) => void;
   onReorder?: (prompts: Prompt[]) => void;
+  selectedIds: string[];
+  onSelect: (id: string, selected: boolean) => void;
+  canReorder: boolean;
+  trashMode: boolean;
+  onRestore: (id: string) => void;
+  onPermanentDelete: (id: string) => void;
 }
 
 export default function PromptGrid({
@@ -26,6 +32,12 @@ export default function PromptGrid({
   onDuplicate,
   onView,
   onReorder,
+  selectedIds,
+  onSelect,
+  canReorder,
+  trashMode,
+  onRestore,
+  onPermanentDelete,
 }: PromptGridProps) {
   const [draggedId, setDraggedId] = useState<string | null>(
     null
@@ -118,11 +130,13 @@ export default function PromptGrid({
     return (
       <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center dark:border-slate-700 dark:bg-slate-900">
         <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
-          No prompts found
+          {trashMode ? "Trash is empty" : "No prompts found"}
         </h3>
 
         <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-          Try changing your search or filters, or create a new prompt.
+          {trashMode
+            ? "Prompts you delete will appear here until permanently removed."
+            : "Try changing your search or filters, or create a new prompt."}
         </p>
       </div>
     );
@@ -140,27 +154,30 @@ export default function PromptGrid({
         return (
           <div
             key={prompt._id}
-            draggable
+            draggable={canReorder}
             onDragStart={(event) =>
+              canReorder &&
               handleDragStart(
                 event,
                 prompt._id
               )
             }
             onDragOver={(event) =>
+              canReorder &&
               handleDragOver(
                 event,
                 prompt._id
               )
             }
             onDrop={(event) =>
+              canReorder &&
               handleDrop(
                 event,
                 prompt._id
               )
             }
-            onDragEnd={handleDragEnd}
-            className={`cursor-grab transition ${
+            onDragEnd={canReorder ? handleDragEnd : undefined}
+            className={`${canReorder ? "cursor-grab" : ""} transition ${
               isDragging
                 ? "scale-[0.98] opacity-50"
                 : ""
@@ -179,6 +196,11 @@ export default function PromptGrid({
               onCopy={onCopy}
               onDuplicate={onDuplicate}
               onView={onView}
+              selected={selectedIds.includes(prompt._id)}
+              onSelect={onSelect}
+              trashMode={trashMode}
+              onRestore={onRestore}
+              onPermanentDelete={onPermanentDelete}
             />
           </div>
         );
