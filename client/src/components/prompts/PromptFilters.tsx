@@ -9,12 +9,15 @@ import {
   CATEGORIES,
   type Category,
 } from "../../types/prompt";
+import type { PromptCollection } from "../../types/collection";
 
 export type PromptFilter = "all" | "favorites" | "pinned";
 
 export type PromptSort =
+  | "manual"
   | "newest"
   | "oldest"
+  | "updated"
   | "title-asc"
   | "title-desc";
 
@@ -23,10 +26,13 @@ interface PromptFiltersProps {
   category: Category | "All";
   filter: PromptFilter;
   sort: PromptSort;
+  folderId: string | "All";
+  folders: PromptCollection[];
   onSearchChange: (value: string) => void;
   onCategoryChange: (value: Category | "All") => void;
   onFilterChange: (value: PromptFilter) => void;
   onSortChange: (value: PromptSort) => void;
+  onFolderChange: (value: string | "All") => void;
   onClear: () => void;
 }
 
@@ -35,17 +41,21 @@ export default function PromptFilters({
   category,
   filter,
   sort,
+  folderId,
+  folders,
   onSearchChange,
   onCategoryChange,
   onFilterChange,
   onSortChange,
+  onFolderChange,
   onClear,
 }: PromptFiltersProps) {
   const hasFilters =
     search.trim() !== "" ||
     category !== "All" ||
     filter !== "all" ||
-    sort !== "newest";
+    sort !== "manual" ||
+    folderId !== "All";
 
   return (
     <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
@@ -147,6 +157,20 @@ export default function PromptFilters({
             </button>
           </div>
 
+          <select
+            aria-label="Filter by folder"
+            value={folderId}
+            onChange={(event) => onFolderChange(event.target.value)}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+          >
+            <option value="All">All folders</option>
+            {folders.map((folder) => (
+              <option key={folder._id} value={folder._id}>
+                {folder.name}
+              </option>
+            ))}
+          </select>
+
           {/* Sort */}
           <select
             value={sort}
@@ -155,8 +179,10 @@ export default function PromptFilters({
             }
             className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:focus:border-slate-600 dark:focus:ring-slate-700"
           >
+            <option value="manual">My order</option>
             <option value="newest">Newest</option>
             <option value="oldest">Oldest</option>
+            <option value="updated">Recently updated</option>
             <option value="title-asc">Title A–Z</option>
             <option value="title-desc">Title Z–A</option>
           </select>
