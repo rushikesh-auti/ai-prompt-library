@@ -4,6 +4,7 @@ import type { PromptCollection, CollectionInput } from "../types/collection";
 import type { Prompt } from "../types/prompt";
 
 interface CollectionsPageProps {
+  kind: "collection" | "folder";
   collections: PromptCollection[];
   prompts: Prompt[];
   loading: boolean;
@@ -14,6 +15,7 @@ interface CollectionsPageProps {
 }
 
 export default function CollectionsPage({
+  kind,
   collections,
   prompts,
   loading,
@@ -43,7 +45,12 @@ export default function CollectionsPage({
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    const data = { name: name.trim(), description: description.trim(), prompts: [] };
+    const data = {
+      name: name.trim(),
+      description: description.trim(),
+      prompts: [],
+      kind,
+    };
     if (editingId) {
       await onUpdate(editingId, { name: data.name, description: data.description });
       setEditingId(null);
@@ -61,8 +68,12 @@ export default function CollectionsPage({
     <section className="mx-auto max-w-7xl">
       <div className="mb-8">
         <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-violet-600">Organize your work</p>
-        <h1 className="text-3xl font-bold tracking-tight text-slate-950 dark:text-white">Collections</h1>
-        <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">Group your private prompts into focused workflows.</p>
+        <h1 className="text-3xl font-bold tracking-tight text-slate-950 dark:text-white">{kind === "folder" ? "Folders" : "Collections"}</h1>
+        <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">
+          {kind === "folder"
+            ? "Place each prompt in a single folder; deleting a folder never deletes its prompts."
+            : "Group your private prompts into focused workflows."}
+        </p>
       </div>
 
       {error && <div role="alert" className="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200">{error}</div>}
@@ -73,7 +84,7 @@ export default function CollectionsPage({
           <div>
             {selected ? (
               <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6">
-                <button type="button" onClick={() => setSelectedId(null)} className="mb-5 inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-900 dark:hover:text-white"><FiArrowLeft size={16} /> All collections</button>
+                <button type="button" onClick={() => setSelectedId(null)} className="mb-5 inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-900 dark:hover:text-white"><FiArrowLeft size={16} /> All {kind === "folder" ? "folders" : "collections"}</button>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div><h2 className="text-xl font-semibold text-slate-900 dark:text-white">{selected.name}</h2><p className="mt-1 text-sm text-slate-500">{selected.description || "Prompts saved to this collection."}</p></div>
                   <button type="button" onClick={() => startEdit(selected)} className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">Edit details</button>
@@ -105,26 +116,26 @@ export default function CollectionsPage({
                     <p className="mt-1 line-clamp-2 min-h-10 text-sm leading-5 text-slate-500">{collection.description || "A collection of your prompts."}</p>
                     <div className="mt-4 flex items-center justify-between">
                       <span className="text-xs text-slate-500">{collection.prompts.length} prompt{collection.prompts.length === 1 ? "" : "s"}</span>
-                      <button type="button" onClick={() => { setSelectedPromptIds(collection.prompts); setSelectedId(collection._id); setEditingId(null); }} className="rounded-lg px-3 py-2 text-sm font-semibold text-violet-700 hover:bg-violet-50 dark:text-violet-300 dark:hover:bg-violet-950/50">Open collection</button>
+                      <button type="button" onClick={() => { setSelectedPromptIds(collection.prompts.filter((id) => prompts.some((prompt) => prompt._id === id))); setSelectedId(collection._id); setEditingId(null); }} className="rounded-lg px-3 py-2 text-sm font-semibold text-violet-700 hover:bg-violet-50 dark:text-violet-300 dark:hover:bg-violet-950/50">Open {kind}</button>
                     </div>
                   </article>
                 ))}
               </div>
             ) : (
               <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-16 text-center dark:border-slate-700 dark:bg-slate-900">
-                <FiFolder className="mx-auto text-slate-400" size={26} /><h2 className="mt-4 text-lg font-semibold text-slate-900 dark:text-white">Your collections start here</h2><p className="mx-auto mt-2 max-w-sm text-sm text-slate-500">Create a collection to keep related prompts together. Your prompts stay private to your account.</p>
+                <FiFolder className="mx-auto text-slate-400" size={26} /><h2 className="mt-4 text-lg font-semibold text-slate-900 dark:text-white">Your {kind === "folder" ? "folders" : "collections"} start here</h2><p className="mx-auto mt-2 max-w-sm text-sm text-slate-500">Create a {kind} to keep related prompts organized. Your prompts stay private to your account.</p>
               </div>
             )}
           </div>
 
           <form onSubmit={(event) => void submit(event)} className="h-fit rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6">
-            <div className="flex items-center gap-2">{!editingId && <FiPlus className="text-violet-600" size={17} />}<h2 className="font-semibold text-slate-900 dark:text-white">{editingId ? "Edit collection" : "New collection"}</h2></div>
+            <div className="flex items-center gap-2">{!editingId && <FiPlus className="text-violet-600" size={17} />}<h2 className="font-semibold text-slate-900 dark:text-white">{editingId ? `Edit ${kind}` : `New ${kind}`}</h2></div>
             <label htmlFor="collection-name" className="mt-5 block text-sm font-medium text-slate-700 dark:text-slate-300">Name</label>
             <input id="collection-name" required minLength={2} maxLength={60} value={name} onChange={(event) => setName(event.target.value)} placeholder="e.g. Product launch" className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
             <label htmlFor="collection-description" className="mt-4 block text-sm font-medium text-slate-700 dark:text-slate-300">Description <span className="font-normal text-slate-400">(optional)</span></label>
             <textarea id="collection-description" maxLength={200} rows={3} value={description} onChange={(event) => setDescription(event.target.value)} placeholder="What belongs in this collection?" className="mt-2 w-full resize-y rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
             <div className="mt-4 flex gap-2">
-              <button type="submit" className="rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-violet-700">{editingId ? "Save changes" : "Create collection"}</button>
+              <button type="submit" className="rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-violet-700">{editingId ? "Save changes" : `Create ${kind}`}</button>
               {editingId && <button type="button" onClick={startCreate} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 dark:border-slate-700 dark:text-slate-300">Cancel</button>}
             </div>
           </form>
