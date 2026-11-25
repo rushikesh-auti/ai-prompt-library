@@ -93,7 +93,11 @@ export default function DashboardLayout({
               onThemeToggle={onThemeToggle}
               userName={user?.name}
               userEmail={user?.email}
-              searchEnabled={activeView !== "collections" && activeView !== "settings"}
+              searchEnabled={
+                activeView !== "collections" &&
+                activeView !== "folders" &&
+                activeView !== "settings"
+              }
             />
           </header>
 

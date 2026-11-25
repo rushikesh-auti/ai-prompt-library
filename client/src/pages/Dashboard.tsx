@@ -16,14 +16,19 @@ import CollectionsPage from "./CollectionsPage";
 import SettingsPage from "./SettingsPage";
 
 import {
+  bulkPromptAction,
+  fetchPromptSummary,
   addPrompt,
   editPrompt,
   favoritePrompt,
   fetchPrompts,
+  fetchTrash,
   importPrompts,
   pinPrompt,
+  permanentlyDeletePrompt,
   removePrompt,
-  updatePromptOrder,
+  restorePrompt,
+  savePromptOrder,
 } from "../features/prompts/promptSlice";
 import { logoutUser } from "../features/auth/authSlice";
 import {
@@ -32,12 +37,13 @@ import {
   getCollections,
   updateCollection,
 } from "../services/collectionApi";
+import { getPrompts } from "../services/promptApi";
 import { useTheme } from "../hooks/useTheme";
 
 import { useAppDispatch, useAppSelector } from "../store/hooks";
 import { toPortablePromptData } from "../utils/promptStorage";
 
-import type { Category, CreatePromptData, ExplorePrompt, Prompt } from "../types/prompt";
+import type { Category, CreatePromptData, ExplorePrompt, Prompt, PromptQuery } from "../types/prompt";
 import type { CollectionInput, PromptCollection } from "../types/collection";
 
 export default function Dashboard() {
@@ -45,7 +51,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { isDark, toggleTheme } = useTheme();
 
-  const { prompts, loading, error } = useAppSelector((state) => state.prompts);
+  const { prompts, loading, error, total, pages, summary, summaryError } = useAppSelector((state) => state.prompts);
   const { user } = useAppSelector((state) => state.auth);
 
   const [activeView, setActiveView] = useState("all");
@@ -55,21 +61,41 @@ export default function Dashboard() {
   const [collections, setCollections] = useState<PromptCollection[]>([]);
   const [collectionsLoaded, setCollectionsLoaded] = useState(false);
   const [collectionsError, setCollectionsError] = useState<string | null>(null);
+  const [organizationLoading, setOrganizationLoading] = useState(false);
   const [page, setPage] = useState(1);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [collectionPrompts, setCollectionPrompts] = useState<Prompt[]>([]);
+  const [folderId, setFolderId] = useState<string | "All">("All");
+  const [selectedPromptIds, setSelectedPromptIds] = useState<string[]>([]);
 
   //  FILTER STATE
 
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<Category | "All">("All");
   const [filter, setFilter] = useState<PromptFilter>("all");
-  const [sort, setSort] = useState<PromptSort>("newest");
+  const [sort, setSort] = useState<PromptSort>("manual");
+
+  const query = useMemo<PromptQuery>(() => ({
+    page,
+    limit: 12,
+    sort,
+    ...(search.trim() ? { search: search.trim() } : {}),
+    ...(category !== "All" ? { category } : {}),
+    ...(filter === "favorites" ? { favorite: true } : {}),
+    ...(filter === "pinned" ? { pinned: true } : {}),
+    ...(folderId !== "All" ? { folderId } : {}),
+  }), [page, sort, search, category, filter, folderId]);
 
   useEffect(() => {
-    dispatch(fetchPrompts());
-  }, [dispatch]);
+    if (["explore", "collections", "folders", "settings"].includes(activeView)) return;
+    if (activeView === "trash") {
+      dispatch(fetchTrash(query));
+    } else {
+      dispatch(fetchPrompts(query));
+    }
+  }, [dispatch, activeView, query, refreshKey]);
 
   useEffect(() => {
-    if (activeView !== "collections") return;
     let active = true;
     getCollections()
       .then((items) => {
@@ -99,14 +125,39 @@ export default function Dashboard() {
     return () => {
       active = false;
     };
+  }, []);
+
+  useEffect(() => {
+    if (activeView !== "collections" && activeView !== "folders") return;
+    let active = true;
+    getPrompts({ all: true, sort: "manual" })
+      .then((result) => {
+        if (active) setCollectionPrompts(result.prompts);
+      })
+      .catch(() => {
+        if (active) setCollectionsError("Unable to load prompts for organization");
+      })
+      .finally(() => {
+        if (active) setOrganizationLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, [activeView]);
+
+  useEffect(() => {
+    dispatch(fetchPromptSummary());
+  }, [dispatch]);
 
   //  SIDEBAR NAVIGATION
 
   const handleViewChange = (view: string) => {
     setActiveView(view);
+    setOrganizationLoading(view === "collections" || view === "folders");
     setSearch("");
     setPage(1);
+    setFolderId("All");
+    setSelectedPromptIds([]);
 
     if (view === "all") {
       setCategory("All");
@@ -126,7 +177,7 @@ export default function Dashboard() {
       return;
     }
 
-    if (view === "explore" || view === "collections" || view === "settings") {
+    if (["explore", "collections", "folders", "settings", "trash"].includes(view)) {
       setCategory("All");
       setFilter("all");
       return;
@@ -185,6 +236,8 @@ export default function Dashboard() {
             data,
           }),
         ).unwrap();
+        dispatch(fetchPrompts(query));
+        dispatch(fetchPromptSummary());
 
         toast.success("Prompt updated successfully");
       } else {
@@ -192,8 +245,11 @@ export default function Dashboard() {
         setActiveView("all");
         setCategory("All");
         setFilter("all");
+        setFolderId("All");
         setSearch("");
         setPage(1);
+        dispatch(fetchPromptSummary());
+        setRefreshKey((key) => key + 1);
 
         toast.success("Prompt created successfully");
       }
@@ -209,7 +265,7 @@ export default function Dashboard() {
 
   const handleDelete = async (id: string) => {
     const confirmed = window.confirm(
-      "Are you sure you want to delete this prompt?",
+      "Move this prompt to Trash? You can restore it later.",
     );
 
     if (!confirmed) {
@@ -219,11 +275,106 @@ export default function Dashboard() {
     try {
       await dispatch(removePrompt(id)).unwrap();
 
-      toast.success("Prompt deleted successfully");
+      setSelectedPromptIds((current) => current.filter((item) => item !== id));
+      if (page > 1 && pagePrompts.length === 1) setPage(page - 1);
+      dispatch(fetchPromptSummary());
+      toast.success("Prompt moved to Trash");
     } catch (error) {
       toast.error(
         typeof error === "string" ? error : "Failed to delete prompt",
       );
+    }
+  };
+
+  const handleRestore = async (id: string) => {
+    try {
+      await dispatch(restorePrompt(id)).unwrap();
+      setSelectedPromptIds((current) => current.filter((item) => item !== id));
+      if (activeView === "trash" && page > 1 && pagePrompts.length === 1) {
+        setPage(page - 1);
+      }
+      dispatch(fetchPromptSummary());
+      toast.success("Prompt restored");
+    } catch (restoreError) {
+      toast.error(typeof restoreError === "string" ? restoreError : "Failed to restore prompt");
+    }
+  };
+
+  const handlePermanentDelete = async (id: string) => {
+    if (!window.confirm("Permanently delete this prompt? This cannot be undone.")) return;
+    try {
+      await dispatch(permanentlyDeletePrompt(id)).unwrap();
+      setSelectedPromptIds((current) => current.filter((item) => item !== id));
+      if (page > 1 && pagePrompts.length === 1) setPage(page - 1);
+      toast.success("Prompt permanently deleted");
+    } catch (deleteError) {
+      toast.error(typeof deleteError === "string" ? deleteError : "Failed to permanently delete prompt");
+    }
+  };
+
+  const handleSelectionChange = (id: string, selected: boolean) => {
+    setSelectedPromptIds((current) =>
+      selected
+        ? current.includes(id) ? current : [...current, id]
+        : current.filter((item) => item !== id),
+    );
+  };
+
+  const handleBulkAction = async (
+    action: "favorite" | "unfavorite" | "trash" | "restore" | "permanentDelete",
+  ) => {
+    if (selectedPromptIds.length === 0) return;
+    if (
+      action === "permanentDelete" &&
+      !window.confirm(`Permanently delete ${selectedPromptIds.length} prompts? This cannot be undone.`)
+    ) return;
+    try {
+      await dispatch(bulkPromptAction({ ids: selectedPromptIds, action })).unwrap();
+      if (
+        (action === "trash" ||
+          action === "restore" ||
+          action === "permanentDelete") &&
+        page > 1 &&
+        selectedPromptIds.length >= pagePrompts.length
+      ) {
+        setPage(page - 1);
+      }
+      setSelectedPromptIds([]);
+      dispatch(fetchPromptSummary());
+      if (activeView === "trash") dispatch(fetchTrash(query));
+      else dispatch(fetchPrompts(query));
+      toast.success(
+        action === "trash" ? "Selected prompts moved to Trash"
+          : action === "restore" ? "Selected prompts restored"
+            : action === "permanentDelete" ? "Selected prompts permanently deleted"
+              : action === "favorite" ? "Selected prompts added to Favorites"
+                : "Selected prompts removed from Favorites",
+      );
+    } catch (bulkError) {
+      toast.error(typeof bulkError === "string" ? bulkError : "Bulk action failed");
+    }
+  };
+
+  const handleBulkMove = async (targetFolderId: string) => {
+    if (selectedPromptIds.length === 0) return;
+    try {
+      await dispatch(bulkPromptAction({
+        ids: selectedPromptIds,
+        action: "moveToFolder",
+        folderId: targetFolderId || null,
+      })).unwrap();
+      setSelectedPromptIds([]);
+      if (
+        folderId !== "All" &&
+        page > 1 &&
+        selectedPromptIds.length >= pagePrompts.length
+      ) {
+        setPage(page - 1);
+      }
+      dispatch(fetchPrompts(query));
+      toast.success(targetFolderId ? "Prompts moved to folder" : "Prompts removed from folders");
+    } catch (bulkError) {
+      toast.error(typeof bulkError === "string" ? bulkError : "Could not move prompts");
     }
   };
 
@@ -243,6 +394,8 @@ export default function Dashboard() {
           isFavorite: newFavoriteState,
         }),
       ).unwrap();
+      dispatch(fetchPromptSummary());
+      dispatch(fetchPrompts(query));
       setViewedPrompt((current) =>
         current?._id === id ? updatedPrompt : current,
       );
@@ -275,6 +428,8 @@ export default function Dashboard() {
           isPinned: newPinnedState,
         }),
       ).unwrap();
+      dispatch(fetchPrompts(query));
+      dispatch(fetchPromptSummary());
       setViewedPrompt((current) =>
         current?._id === id ? updatedPrompt : current,
       );
@@ -300,6 +455,8 @@ export default function Dashboard() {
           isPinned: false,
         }),
       ).unwrap();
+      dispatch(fetchPromptSummary());
+      setRefreshKey((key) => key + 1);
 
       toast.success("Prompt duplicated successfully");
     } catch (error) {
@@ -322,6 +479,7 @@ export default function Dashboard() {
           isPinned: false,
         }),
       ).unwrap();
+      dispatch(fetchPromptSummary());
       toast.success("Added to your private prompts");
     } catch (saveError) {
       toast.error(typeof saveError === "string" ? saveError : "Could not save this prompt");
@@ -332,7 +490,7 @@ export default function Dashboard() {
     try {
       const collection = await createCollection(data);
       setCollections((current) => [collection, ...current]);
-      toast.success("Collection created");
+      toast.success(data.kind === "folder" ? "Folder created" : "Collection created");
     } catch (collectionError) {
       toast.error(
         collectionError &&
@@ -359,7 +517,7 @@ export default function Dashboard() {
       setCollections((current) =>
         current.map((item) => item._id === id ? collection : item),
       );
-      toast.success("Collection updated");
+      toast.success(collection.kind === "folder" ? "Folder updated" : "Collection updated");
     } catch (collectionError) {
       toast.error(
         collectionError &&
@@ -413,23 +571,28 @@ export default function Dashboard() {
 
   //  REORDER PROMPTS
 
-  const handleReorder = (reorderedPrompts: Prompt[]) => {
-    dispatch(updatePromptOrder(reorderedPrompts));
-
-    toast.success("Prompt order updated");
+  const handleReorder = async (reorderedPrompts: Prompt[]) => {
+    try {
+      await dispatch(savePromptOrder(reorderedPrompts.map((prompt) => prompt._id))).unwrap();
+      toast.success("Prompt order saved");
+    } catch (reorderError) {
+      toast.error(typeof reorderError === "string" ? reorderError : "Failed to save prompt order");
+      dispatch(fetchPrompts(query));
+    }
   };
 
   //  EXPORT JSON
 
-  const handleExportJSON = () => {
+  const handleExportJSON = async () => {
     try {
-      if (prompts.length === 0) {
+      const { prompts: allPrompts } = await getPrompts({ all: true, sort: "manual" });
+      if (allPrompts.length === 0) {
         toast.error("No prompts available to export");
 
         return;
       }
 
-      const portablePrompts = toPortablePromptData(prompts);
+      const portablePrompts = toPortablePromptData(allPrompts);
       const jsonData = JSON.stringify(portablePrompts, null, 2);
 
       const blob = new Blob([jsonData], {
@@ -509,8 +672,12 @@ export default function Dashboard() {
         setSearch("");
         setCategory("All");
         setFilter("all");
-        setSort("newest");
+        setFolderId("All");
+        setSort("manual");
         setActiveView("all");
+        setPage(1);
+        dispatch(fetchPromptSummary());
+        setRefreshKey((key) => key + 1);
       }
 
       if (summary.failed > 0) {
@@ -565,95 +732,9 @@ export default function Dashboard() {
     }
   };
 
-  //  FILTER + SEARCH + SORT
-
-  const filteredPrompts = useMemo(() => {
-    const normalizedSearch = search.trim().toLowerCase();
-
-    const result = prompts.filter((prompt) => {
-      const title = prompt.title?.toLowerCase() ?? "";
-
-      const content = prompt.content?.toLowerCase() ?? "";
-
-      const description = prompt.description?.toLowerCase() ?? "";
-
-      const tags = prompt.tags ?? [];
-
-      /* Search */
-
-      const matchesSearch =
-        normalizedSearch === "" ||
-        title.includes(normalizedSearch) ||
-        content.includes(normalizedSearch) ||
-        description.includes(normalizedSearch) ||
-        tags.some((tag) => tag.toLowerCase().includes(normalizedSearch));
-
-      /* Category */
-
-      const matchesCategory =
-        category === "All" || prompt.category === category;
-
-      /* Favorite / Pinned */
-
-      const matchesFilter =
-        filter === "all" ||
-        (filter === "favorites" && prompt.isFavorite) ||
-        (filter === "pinned" && prompt.isPinned);
-
-      return matchesSearch && matchesCategory && matchesFilter;
-    });
-
-    /* Sorting */
-
-    return [...result].sort((a, b) => {
-      switch (sort) {
-        case "oldest":
-          return (
-            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-          );
-
-        case "title-asc":
-          return a.title.localeCompare(b.title);
-
-        case "title-desc":
-          return b.title.localeCompare(a.title);
-
-        case "newest":
-        default:
-          return (
-            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-          );
-      }
-    });
-  }, [prompts, search, category, filter, sort]);
-
-  const pageSize = 12;
-  const pageCount = Math.max(1, Math.ceil(filteredPrompts.length / pageSize));
-  const currentPage = Math.min(page, pageCount);
-  const pagePrompts = filteredPrompts.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-
-  //  STATISTICS
-
-  const statistics = useMemo(() => {
-    const categoryCounts = prompts.reduce(
-      (acc, prompt) => {
-        acc[prompt.category] = (acc[prompt.category] || 0) + 1;
-
-        return acc;
-      },
-      {} as Record<string, number>,
-    );
-
-    return {
-      total: prompts.length,
-
-      favorites: prompts.filter((prompt) => prompt.isFavorite).length,
-
-      pinned: prompts.filter((prompt) => prompt.isPinned).length,
-
-      categories: Object.keys(categoryCounts).length,
-    };
-  }, [prompts]);
+  const currentPage = page;
+  const pageCount = pages;
+  const pagePrompts = prompts;
 
   //  CLEAR FILTERS
 
@@ -661,8 +742,10 @@ export default function Dashboard() {
     setSearch("");
     setCategory("All");
     setFilter("all");
-    setSort("newest");
-    setActiveView("all");
+    setSort("manual");
+    setFolderId("All");
+    if (activeView !== "trash") setActiveView("all");
+    setSelectedPromptIds([]);
     setPage(1);
   };
 
@@ -670,7 +753,11 @@ export default function Dashboard() {
 
   const layoutProps = {
     search,
-    onSearchChange: (value: string) => { setPage(1); setSearch(value); },
+    onSearchChange: (value: string) => {
+      setPage(1);
+      setSelectedPromptIds([]);
+      setSearch(value);
+    },
     onAddPrompt: handleAddPrompt,
     activeView,
     onViewChange: handleViewChange,
@@ -692,14 +779,16 @@ export default function Dashboard() {
     );
   }
 
-  if (activeView === "collections") {
+  if (activeView === "collections" || activeView === "folders") {
+    const kind = activeView === "folders" ? "folder" : "collection";
     return (
       <>
         <DashboardLayout {...layoutProps}>
           <CollectionsPage
-            collections={collections}
-            prompts={prompts}
-            loading={!collectionsLoaded}
+            kind={kind}
+            collections={collections.filter((item) => item.kind === kind)}
+            prompts={collectionPrompts}
+            loading={!collectionsLoaded || organizationLoading}
             error={collectionsError}
             onCreate={handleCreateCollection}
             onUpdate={handleUpdateCollection}
@@ -733,7 +822,7 @@ export default function Dashboard() {
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-3xl">
-                {category !== "All"
+                {activeView === "trash" ? "Trash" : category !== "All"
                   ? category
                   : filter === "favorites"
                     ? "Favorite prompts"
@@ -743,13 +832,15 @@ export default function Dashboard() {
               </h1>
 
               <p className="mt-2 max-w-xl text-sm leading-6 text-slate-500 dark:text-slate-400">
-                Your private AI workflows, organized and ready when you need them.
+                {activeView === "trash"
+                  ? "Restore prompts or permanently delete them."
+                  : "Your private AI workflows, organized and ready when you need them."}
               </p>
             </div>
 
             {/* Dashboard Actions */}
 
-            <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
+            {activeView !== "trash" && <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
               {/* Import */}
 
               <label className="cursor-pointer rounded-xl border border-slate-300 bg-white px-3 py-3 text-center text-xs font-semibold text-slate-700 transition hover:bg-slate-50 sm:px-4 sm:py-2.5 sm:text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800">
@@ -782,8 +873,13 @@ export default function Dashboard() {
               >
                 + Add Prompt
               </button>
-            </div>
+            </div>}
           </div>
+          {summaryError && (
+            <p role="alert" className="mt-4 rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+              Could not load prompt statistics: {summaryError}
+            </p>
+          )}
 
           {/* STATISTICS */}
 
@@ -799,7 +895,7 @@ export default function Dashboard() {
               </div>
 
               <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-white">
-                {(loading || error) && prompts.length === 0 ? "—" : statistics.total}
+                {(loading || error) && prompts.length === 0 ? "—" : summary.total}
               </p>
             </div>
 
@@ -814,7 +910,7 @@ export default function Dashboard() {
               </div>
 
               <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-white">
-                {(loading || error) && prompts.length === 0 ? "—" : statistics.favorites}
+                {(loading || error) && prompts.length === 0 ? "—" : summary.favorites}
               </p>
             </div>
 
@@ -829,7 +925,7 @@ export default function Dashboard() {
               </div>
 
               <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-white">
-                {(loading || error) && prompts.length === 0 ? "—" : statistics.pinned}
+                {(loading || error) && prompts.length === 0 ? "—" : summary.pinned}
               </p>
             </div>
 
@@ -844,7 +940,7 @@ export default function Dashboard() {
               </div>
 
               <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-white">
-                {(loading || error) && prompts.length === 0 ? "—" : statistics.categories}
+                {(loading || error) && prompts.length === 0 ? "—" : summary.categories}
               </p>
             </div>
           </div>
@@ -854,8 +950,8 @@ export default function Dashboard() {
           <div className="mt-8">
             {/* Loading */}
 
-            {loading && prompts.length === 0 && (
-              <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center dark:border-slate-800 dark:bg-slate-900">
+            {loading && (
+              <div role="status" className="rounded-2xl border border-slate-200 bg-white p-10 text-center dark:border-slate-800 dark:bg-slate-900">
                 <p className="text-sm text-slate-500">Loading prompts...</p>
               </div>
             )}
@@ -867,7 +963,13 @@ export default function Dashboard() {
                 <p className="text-sm font-medium text-red-700 dark:text-red-300">
                   {error}
                 </p>
-                <button type="button" onClick={() => dispatch(fetchPrompts())} className="mt-3 text-sm font-semibold text-red-800 underline dark:text-red-200">Try again</button>
+                <button
+                  type="button"
+                  onClick={() => activeView === "trash" ? dispatch(fetchTrash(query)) : dispatch(fetchPrompts(query))}
+                  className="mt-3 text-sm font-semibold text-red-800 underline dark:text-red-200"
+                >
+                  Try again
+                </button>
               </div>
             )}
 
@@ -882,33 +984,54 @@ export default function Dashboard() {
                   category={category}
                   filter={filter}
                   sort={sort}
+                  folderId={folderId}
+                  folders={collections.filter((item) => item.kind === "folder")}
                   onSearchChange={(value) => {
                     setSearch(value);
+                    setSelectedPromptIds([]);
                     setPage(1);
 
                     if (value.trim()) {
-                      setActiveView("all");
-                      setCategory("All");
-                      setFilter("all");
+                      if (activeView !== "trash") {
+                        setActiveView("all");
+                        setCategory("All");
+                        setFilter("all");
+                        setFolderId("All");
+                      }
                     }
                   }}
                   onCategoryChange={(value) => {
                     setCategory(value);
+                    setSelectedPromptIds([]);
                     setFilter("all");
                     setSearch("");
                     setPage(1);
 
-                    setActiveView(value === "All" ? "all" : value);
+                    if (activeView !== "trash") {
+                      setFolderId("All");
+                      setActiveView(value === "All" ? "all" : value);
+                    }
                   }}
                   onFilterChange={(value) => {
                     setFilter(value);
+                    setSelectedPromptIds([]);
                     setCategory("All");
                     setSearch("");
                     setPage(1);
 
-                    setActiveView(value);
+                    if (activeView !== "trash") setActiveView(value);
                   }}
-                  onSortChange={(value) => { setSort(value); setPage(1); }}
+                  onSortChange={(value) => {
+                    setSort(value);
+                    setSelectedPromptIds([]);
+                    setPage(1);
+                  }}
+                  onFolderChange={(value) => {
+                    setFolderId(value);
+                    setSelectedPromptIds([]);
+                    setPage(1);
+                    if (activeView !== "trash") setActiveView("all");
+                  }}
                   onClear={handleClearFilters}
                 />
 
@@ -917,7 +1040,11 @@ export default function Dashboard() {
                 <div className="mb-5 flex items-center justify-between">
                   <div>
                     <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
-                      {category !== "All"
+                      {activeView === "trash"
+                        ? "Trash"
+                        : folderId !== "All"
+                          ? collections.find((item) => item._id === folderId)?.name || "Folder"
+                          : category !== "All"
                         ? category
                         : filter === "favorites"
                           ? "Favorite Prompts"
@@ -927,30 +1054,89 @@ export default function Dashboard() {
                     </h2>
 
                     <p className="mt-1 text-sm text-slate-500">
-                      {filteredPrompts.length} prompt
-                      {filteredPrompts.length !== 1 ? "s" : ""}
+                      {total} prompt
+                      {total !== 1 ? "s" : ""}
                     </p>
                   </div>
                 </div>
+
+                {pagePrompts.length > 0 && (
+                  <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const pageIds = pagePrompts.map((prompt) => prompt._id);
+                        setSelectedPromptIds((current) =>
+                          pageIds.every((id) => current.includes(id))
+                            ? current.filter((id) => !pageIds.includes(id))
+                            : [...new Set([...current, ...pageIds])],
+                        );
+                      }}
+                      className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300"
+                    >
+                      {pagePrompts.every((prompt) => selectedPromptIds.includes(prompt._id))
+                        ? "Deselect page"
+                        : "Select page"}
+                    </button>
+                    <span className="text-sm text-slate-500">{selectedPromptIds.length} selected</span>
+                    {selectedPromptIds.length > 0 && (activeView === "trash" ? (
+                      <>
+                        <button type="button" onClick={() => void handleBulkAction("restore")} className="rounded-lg bg-violet-600 px-3 py-2 text-sm font-medium text-white">Restore selected</button>
+                        <button type="button" onClick={() => void handleBulkAction("permanentDelete")} className="rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white">Delete permanently</button>
+                      </>
+                    ) : (
+                      <>
+                        <button type="button" onClick={() => void handleBulkAction("favorite")} className="rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-700">Favorite</button>
+                        <button type="button" onClick={() => void handleBulkAction("unfavorite")} className="rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-700">Unfavorite</button>
+                        <select
+                          aria-label="Move selected prompts to folder"
+                          value=""
+                          onChange={(event) => void handleBulkMove(event.target.value === "__remove" ? "" : event.target.value)}
+                          className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
+                        >
+                          <option value="" disabled>Move to folder…</option>
+                          {collections.filter((item) => item.kind === "folder").map((folder) => (
+                            <option key={folder._id} value={folder._id}>{folder.name}</option>
+                          ))}
+                          {folderId !== "All" && <option value="__remove">Remove from this folder</option>}
+                        </select>
+                        <button type="button" onClick={() => void handleBulkAction("trash")} className="rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white">Move to Trash</button>
+                      </>
+                    ))}
+                  </div>
+                )}
 
                 {/* Prompt Grid */}
 
                 <PromptGrid
                   prompts={pagePrompts}
                   onEdit={handleEdit}
-                  onDelete={handleDelete}
+                  onDelete={activeView === "trash" ? handlePermanentDelete : handleDelete}
                   onFavorite={handleFavorite}
                   onPin={handlePin}
                   onCopy={handleCopy}
                   onDuplicate={handleDuplicate}
                   onView={setViewedPrompt}
                   onReorder={handleReorder}
+                  selectedIds={selectedPromptIds}
+                  onSelect={handleSelectionChange}
+                  canReorder={
+                    activeView !== "trash" &&
+                    sort === "manual" &&
+                    !search.trim() &&
+                    category === "All" &&
+                    filter === "all" &&
+                    folderId === "All"
+                  }
+                  trashMode={activeView === "trash"}
+                  onRestore={handleRestore}
+                  onPermanentDelete={handlePermanentDelete}
                 />
                 {pageCount > 1 && (
                   <nav aria-label="Prompt pages" className="mt-7 flex items-center justify-center gap-3">
-                    <button type="button" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">Previous</button>
+                    <button type="button" disabled={currentPage === 1} onClick={() => { setSelectedPromptIds([]); setPage(currentPage - 1); }} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">Previous</button>
                     <span className="text-sm text-slate-500">Page {currentPage} of {pageCount}</span>
-                    <button type="button" disabled={currentPage === pageCount} onClick={() => setPage(currentPage + 1)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">Next</button>
+                    <button type="button" disabled={currentPage === pageCount} onClick={() => { setSelectedPromptIds([]); setPage(currentPage + 1); }} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">Next</button>
                   </nav>
                 )}
               </>

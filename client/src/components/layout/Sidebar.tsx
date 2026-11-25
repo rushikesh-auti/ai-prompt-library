@@ -7,6 +7,7 @@ import {
   FiPlus,
   FiSettings,
   FiTag,
+  FiTrash2,
 } from "react-icons/fi";
 
 interface SidebarProps {
@@ -55,6 +56,16 @@ export default function Sidebar({
       id: "collections",
       label: "Collections",
       icon: FiFolder,
+    },
+    {
+      id: "folders",
+      label: "Folders",
+      icon: FiFolder,
+    },
+    {
+      id: "trash",
+      label: "Trash",
+      icon: FiTrash2,
     },
     {
       id: "settings",
