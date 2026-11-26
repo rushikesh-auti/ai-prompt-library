@@ -62,6 +62,63 @@ const promptSchema = new mongoose.Schema(
       default: "",
     },
 
+    isTemplate: {
+      type: Boolean,
+      default: false,
+    },
+
+    variables: {
+      type: [
+        new mongoose.Schema(
+          {
+            name: {
+              type: String,
+              required: true,
+              trim: true,
+              match: /^[A-Za-z_][A-Za-z0-9_]*$/,
+            },
+            label: { type: String, trim: true, maxlength: 80, default: "" },
+            description: { type: String, trim: true, maxlength: 300, default: "" },
+            defaultValue: { type: String, maxlength: 1000, default: "" },
+            required: { type: Boolean, default: true },
+          },
+          { _id: false },
+        ),
+      ],
+      default: [],
+      validate: [
+        (variables) => variables.length <= 50,
+        "Variables cannot exceed 50 items",
+      ],
+    },
+
+    provider: {
+      type: String,
+      enum: ["openai", "google-gemini", "anthropic", null],
+      default: null,
+    },
+
+    model: {
+      type: String,
+      trim: true,
+      maxlength: [100, "Model name cannot exceed 100 characters"],
+      default: "",
+    },
+
+    temperature: {
+      type: Number,
+      min: 0,
+      max: 2,
+      default: null,
+    },
+
+    versionNumber: {
+      type: Number,
+      min: 0,
+      default: 0,
+      select: false,
+    },
+
     isFavorite: {
       type: Boolean,
       default: false,
@@ -90,10 +147,17 @@ const promptSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
+    toJSON: {
+      transform: (_doc, ret) => {
+        delete ret.versionNumber;
+        return ret;
+      },
+    },
   },
 );
 
 promptSchema.index({ owner: 1, isDeleted: 1, isPinned: -1, order: 1, createdAt: -1 });
+promptSchema.index({ owner: 1, isDeleted: 1, isTemplate: 1, updatedAt: -1 });
 promptSchema.index({ owner: 1, isDeleted: 1, createdAt: -1 });
 promptSchema.index({ owner: 1, isDeleted: 1, updatedAt: -1 });
 promptSchema.index({ owner: 1, isDeleted: 1, title: 1 });
