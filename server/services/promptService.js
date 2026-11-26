@@ -1,9 +1,71 @@
 const Prompt = require("../models/Prompt");
+const PromptVersion = require("../models/PromptVersion");
 const Collection = require("../models/Collection");
 const ApiError = require("../errors/ApiError");
+const { getVariableConfigurationError } = require("../utils/promptVariables");
 
 const activePromptFilter = { isDeleted: { $ne: true } };
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const versionedFields = [
+  "title",
+  "content",
+  "category",
+  "tags",
+  "description",
+  "isTemplate",
+  "variables",
+  "provider",
+  "model",
+  "temperature",
+];
+const snapshotOf = (prompt) =>
+  Object.fromEntries(
+    versionedFields.map((field) => [
+      field,
+      field === "variables"
+        ? (prompt[field] || []).map((variable) =>
+            typeof variable.toObject === "function" ? variable.toObject() : variable,
+          )
+        : prompt[field],
+    ]),
+  );
+const createVersionSnapshot = (prompt, ownerId, authorId, version) =>
+  PromptVersion.create({
+    prompt: prompt._id,
+    owner: ownerId,
+    version,
+    snapshot: snapshotOf(prompt),
+    author: authorId,
+  });
+const ensureTemplateConfiguration = (prompt) => {
+  if (!prompt.isTemplate) {
+    if (prompt.variables?.length) {
+      throw new ApiError(400, "Variables can only be configured for templates");
+    }
+    return;
+  }
+  const error = getVariableConfigurationError(prompt.content, prompt.variables || []);
+  if (error) throw new ApiError(400, error);
+};
+const ensureBaselineVersion = async (prompt, ownerId, authorId) => {
+  const existing = await PromptVersion.findOne({
+    prompt: prompt._id,
+    owner: ownerId,
+    version: 1,
+  });
+  if (existing) return;
+  try {
+    await createVersionSnapshot(prompt, ownerId, authorId, 1);
+  } catch (error) {
+    if (error.code !== 11000) throw error;
+    const persisted = await PromptVersion.findOne({
+      prompt: prompt._id,
+      owner: ownerId,
+      version: 1,
+    });
+    if (!persisted) throw error;
+  }
+};
 
 const sortOptions = {
   manual: { isPinned: -1, order: 1, createdAt: -1 },
@@ -20,6 +82,7 @@ const getQuery = async (ownerId, options = {}, deleted = false) => {
   if (options.category) query.category = options.category;
   if (options.favorite !== undefined) query.isFavorite = options.favorite === "true";
   if (options.pinned !== undefined) query.isPinned = options.pinned === "true";
+  if (options.template !== undefined) query.isTemplate = options.template === "true";
   if (options.search?.trim()) {
     const search = new RegExp(escapeRegex(options.search.trim()), "i");
     query.$or = ["title", "content", "description", "tags"].map((field) => ({
@@ -113,16 +176,117 @@ const getById = async (id, ownerId) => {
   return prompt;
 };
 
-const create = (data, ownerId) =>
-  Prompt.create({ ...data, owner: ownerId, isDeleted: false, deletedAt: null });
+const create = async (data, ownerId) => {
+  const prompt = await Prompt.create({
+    ...data,
+    owner: ownerId,
+    isDeleted: false,
+    deletedAt: null,
+    versionNumber: 1,
+  });
+  await createVersionSnapshot(prompt, ownerId, ownerId, 1);
+  return prompt;
+};
 
 const update = async (id, data, ownerId) => {
-  const prompt = await Prompt.findOneAndUpdate(
-    { _id: id, owner: ownerId, ...activePromptFilter },
-    data,
-    { new: true, runValidators: true },
+  const current = await Prompt.findOne({
+    _id: id,
+    owner: ownerId,
+    ...activePromptFilter,
+  }).select("+versionNumber");
+  if (!current) throw new ApiError(404, "Prompt not found");
+
+  const nextSnapshot = { ...snapshotOf(current), ...data };
+  ensureTemplateConfiguration(nextSnapshot);
+  const hasVersionedChange = versionedFields.some(
+    (field) =>
+      Object.prototype.hasOwnProperty.call(data, field) &&
+      JSON.stringify(snapshotOf(current)[field]) !== JSON.stringify(nextSnapshot[field]),
   );
-  if (!prompt) throw new ApiError(404, "Prompt not found");
+
+  if (!hasVersionedChange) {
+    const prompt = await Prompt.findOneAndUpdate(
+      { _id: id, owner: ownerId, ...activePromptFilter },
+      data,
+      { new: true, runValidators: true },
+    );
+    if (!prompt) throw new ApiError(404, "Prompt not found");
+    return prompt;
+  }
+
+  const currentVersion = current.versionNumber || 0;
+  if (currentVersion === 0) await ensureBaselineVersion(current, ownerId, ownerId);
+  const nextVersion = currentVersion + 1;
+  const prompt = await Prompt.findOneAndUpdate(
+    {
+      _id: id,
+      owner: ownerId,
+      ...activePromptFilter,
+      versionNumber: currentVersion,
+    },
+    { $set: data, $inc: { versionNumber: 1 } },
+    { new: true, runValidators: true },
+  ).select("+versionNumber");
+  if (!prompt) {
+    const stillOwned = await Prompt.exists({ _id: id, owner: ownerId, ...activePromptFilter });
+    if (!stillOwned) throw new ApiError(404, "Prompt not found");
+    throw new ApiError(409, "Prompt changed while saving. Reload and retry.");
+  }
+  await createVersionSnapshot(prompt, ownerId, ownerId, nextVersion);
+  return prompt;
+};
+
+const getVersions = async (id, ownerId) => {
+  await getById(id, ownerId);
+  return PromptVersion.find({ prompt: id, owner: ownerId })
+    .sort({ version: -1 })
+    .populate("author", "name");
+};
+
+const getVersion = async (id, versionId, ownerId) => {
+  await getById(id, ownerId);
+  const version = await PromptVersion.findOne({
+    _id: versionId,
+    prompt: id,
+    owner: ownerId,
+  }).populate("author", "name");
+  if (!version) throw new ApiError(404, "Prompt version not found");
+  return version;
+};
+
+const restoreVersion = async (id, versionId, ownerId) => {
+  const current = await Prompt.findOne({
+    _id: id,
+    owner: ownerId,
+    ...activePromptFilter,
+  }).select("+versionNumber");
+  if (!current) throw new ApiError(404, "Prompt not found");
+  const target = await PromptVersion.findOne({
+    _id: versionId,
+    prompt: id,
+    owner: ownerId,
+  });
+  if (!target) throw new ApiError(404, "Prompt version not found");
+
+  const currentVersion = current.versionNumber || 0;
+  if (currentVersion === 0) await ensureBaselineVersion(current, ownerId, ownerId);
+  const nextVersion = currentVersion + 1;
+  const prompt = await Prompt.findOneAndUpdate(
+    {
+      _id: id,
+      owner: ownerId,
+      ...activePromptFilter,
+      versionNumber: currentVersion,
+    },
+    { $set: target.snapshot, $inc: { versionNumber: 1 } },
+    { new: true, runValidators: true },
+  ).select("+versionNumber");
+  if (!prompt) {
+    const stillOwned = await Prompt.exists({ _id: id, owner: ownerId, ...activePromptFilter });
+    if (!stillOwned) throw new ApiError(404, "Prompt not found");
+    throw new ApiError(409, "Prompt changed while restoring. Reload and retry.");
+  }
+  await createVersionSnapshot(prompt, ownerId, ownerId, nextVersion);
   return prompt;
 };
 
@@ -152,10 +316,13 @@ const permanentlyRemove = async (id, ownerId) => {
     isDeleted: true,
   });
   if (!prompt) throw new ApiError(404, "Trashed prompt not found");
-  await Collection.updateMany(
-    { owner: ownerId },
-    { $pull: { prompts: prompt._id } },
-  );
+  await Promise.all([
+    Collection.updateMany(
+      { owner: ownerId },
+      { $pull: { prompts: prompt._id } },
+    ),
+    PromptVersion.deleteMany({ prompt: prompt._id, owner: ownerId }),
+  ]);
 };
 
 const reorder = async (ids, ownerId) => {
@@ -211,10 +378,13 @@ const bulkAction = async ({ ids, action, folderId }, ownerId) => {
     });
   } else if (action === "permanentDelete") {
     await Prompt.deleteMany(filter);
-    await Collection.updateMany(
-      { owner: ownerId },
-      { $pull: { prompts: { $in: ids } } },
-    );
+    await Promise.all([
+      Collection.updateMany(
+        { owner: ownerId },
+        { $pull: { prompts: { $in: ids } } },
+      ),
+      PromptVersion.deleteMany({ owner: ownerId, prompt: { $in: ids } }),
+    ]);
   } else if (action === "moveToFolder") {
     if (folderId) {
       const folder = await Collection.findOneAndUpdate(
@@ -259,10 +429,16 @@ const importMany = async (prompts, ownerId) => {
           owner: ownerId,
           isDeleted: false,
           deletedAt: null,
+          versionNumber: 1,
         })),
         { ordered: false },
       )
     : [];
+  await Promise.all(
+    createdPrompts.map((prompt) =>
+      createVersionSnapshot(prompt, ownerId, ownerId, 1),
+    ),
+  );
   return {
     created: createdPrompts.length,
     skipped: prompts.length - candidates.length,
@@ -280,6 +456,9 @@ module.exports = {
   getById,
   create,
   update,
+  getVersions,
+  getVersion,
+  restoreVersion,
   remove,
   restore,
   permanentlyRemove,
