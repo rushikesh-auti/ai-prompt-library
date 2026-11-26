@@ -85,6 +85,31 @@ const getPrompt = async (req, res) => {
   const prompt = await promptService.getById(req.params.id, req.user._id);
   res.status(200).json({ success: true, data: prompt });
 };
+const getPromptVersions = async (req, res) => {
+  assertValidId(req.params.id);
+  const data = await promptService.getVersions(req.params.id, req.user._id);
+  res.status(200).json({ success: true, count: data.length, data });
+};
+const getPromptVersion = async (req, res) => {
+  assertValidId(req.params.id);
+  assertValidId(req.params.versionId);
+  const data = await promptService.getVersion(
+    req.params.id,
+    req.params.versionId,
+    req.user._id,
+  );
+  res.status(200).json({ success: true, data });
+};
+const restorePromptVersion = async (req, res) => {
+  assertValidId(req.params.id);
+  assertValidId(req.params.versionId);
+  const data = await promptService.restoreVersion(
+    req.params.id,
+    req.params.versionId,
+    req.user._id,
+  );
+  res.status(200).json({ success: true, message: "Prompt version restored", data });
+};
 const createPrompt = async (req, res) => {
   const prompt = await promptService.create(req.validatedBody, req.user._id);
   res
@@ -155,6 +180,9 @@ module.exports = {
   getSummary,
   explorePrompts,
   getPrompt,
+  getPromptVersions,
+  getPromptVersion,
+  restorePromptVersion,
   createPrompt,
   updatePrompt,
   deletePrompt,

@@ -5,6 +5,9 @@ const {
   getSummary,
   getTrash,
   getPrompt,
+  getPromptVersions,
+  getPromptVersion,
+  restorePromptVersion,
   createPrompt,
   importPrompts,
   updatePrompt,
@@ -38,6 +41,9 @@ router
   .post(csrfProtection, validateRequest(createPromptSchema), createPrompt);
 
 router.post("/import", csrfProtection, validateRequest(importPromptsSchema), importPrompts);
+router.get("/:id/versions", getPromptVersions);
+router.get("/:id/versions/:versionId", getPromptVersion);
+router.post("/:id/restore/:versionId", csrfProtection, restorePromptVersion);
 router.post("/:id/restore", csrfProtection, restorePrompt);
 router.delete("/:id/permanent", csrfProtection, permanentlyDeletePrompt);
 
