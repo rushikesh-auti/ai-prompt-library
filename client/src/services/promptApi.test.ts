@@ -4,7 +4,10 @@ import { apiClient } from "./apiClient";
 import {
   getPrompts,
   getTrash,
+  getPromptVersion,
+  getPromptVersions,
   runBulkPromptAction,
+  restorePromptVersion,
   savePromptOrder,
 } from "./promptApi";
 import type { Prompt } from "../types/prompt";
@@ -28,6 +31,11 @@ const prompt: Prompt = {
   order: 2,
   createdAt: "2026-01-01T00:00:00.000Z",
   updatedAt: "2026-01-02T00:00:00.000Z",
+  isTemplate: false,
+  variables: [],
+  provider: null,
+  model: "",
+  temperature: null,
 };
 
 const response = {
@@ -110,5 +118,51 @@ describe("prompt API", () => {
     expect(apiClient.post).toHaveBeenNthCalledWith(2, "/prompts/reorder", {
       ids: [prompt._id],
     });
+  });
+
+  it("uses the owner-scoped version history endpoints", async () => {
+      const version = {
+        _id: "507f1f77bcf86cd799439012",
+        prompt: prompt._id,
+        version: 1,
+        snapshot: {
+          title: prompt.title,
+          content: prompt.content,
+          category: prompt.category,
+          tags: prompt.tags,
+          description: prompt.description,
+          isTemplate: false,
+          variables: [],
+          provider: null,
+          model: "",
+          temperature: null,
+        },
+        author: "507f1f77bcf86cd799439013",
+        createdAt: "2026-01-02T00:00:00.000Z",
+      };
+      vi.mocked(apiClient.get).mockResolvedValueOnce({
+        data: { data: [version] },
+      } as never);
+      vi.mocked(apiClient.get).mockResolvedValueOnce({
+        data: { data: version },
+      } as never);
+      vi.mocked(apiClient.post).mockResolvedValue({
+        data: { data: prompt },
+      } as never);
+
+      await expect(getPromptVersions(prompt._id)).resolves.toEqual([version]);
+      await expect(getPromptVersion(prompt._id, version._id)).resolves.toEqual(version);
+      await expect(restorePromptVersion(prompt._id, version._id)).resolves.toEqual(prompt);
+      expect(apiClient.get).toHaveBeenNthCalledWith(
+        1,
+        `/prompts/${prompt._id}/versions`,
+      );
+      expect(apiClient.get).toHaveBeenNthCalledWith(
+        2,
+        `/prompts/${prompt._id}/versions/${version._id}`,
+      );
+      expect(apiClient.post).toHaveBeenCalledWith(
+        `/prompts/${prompt._id}/restore/${version._id}`,
+      );
   });
 });
