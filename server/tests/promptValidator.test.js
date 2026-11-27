@@ -23,6 +23,40 @@ describe("prompt validators", () => {
     expect(updatePromptSchema.safeParse({}).success).toBe(false);
     expect(updatePromptSchema.safeParse({ title: "New title" }).success).toBe(true);
   });
+  test("validates unique template variables and provider metadata", () => {
+    const template = {
+      ...validPrompt,
+      content: "Write about {{topic}} in a {{tone}} tone.",
+      isTemplate: true,
+      variables: [
+        { name: "topic", label: "Topic", required: true },
+        { name: "tone", label: "Tone", defaultValue: "friendly", required: false },
+      ],
+      provider: "openai",
+      model: "example-model",
+      temperature: 0.7,
+    };
+    expect(createPromptSchema.safeParse(template).success).toBe(true);
+    expect(
+      createPromptSchema.safeParse({
+        ...template,
+        variables: [{ name: "unknown", required: true }],
+      }).success,
+    ).toBe(false);
+    expect(
+      createPromptSchema.safeParse({
+        ...template,
+        provider: "unknown",
+      }).success,
+    ).toBe(false);
+    expect(
+      createPromptSchema.safeParse({
+        ...template,
+        content: "Malformed placeholder {{topic",
+        variables: [],
+      }).success,
+    ).toBe(true);
+  });
   test("validates import size and strips legacy metadata", () => {
     const parsed = importPromptsSchema.parse([{ ...validPrompt, _id: "legacy-id", createdAt: "old" }]);
     expect(parsed[0]).not.toHaveProperty("_id");

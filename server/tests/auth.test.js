@@ -94,6 +94,9 @@ describe("authentication API", () => {
     await request(app)
       .get("/api/prompts")
       .expect(401);
+    await request(app)
+      .get("/api/prompts/507f1f77bcf86cd799439011/versions")
+      .expect(401);
     await request(app).get("/api/collections").expect(401);
     await request(app).get("/api/explore").expect(401);
     await request(app)
