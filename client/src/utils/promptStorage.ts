@@ -11,6 +11,11 @@ export const toPortablePromptData = (prompts: Prompt[]) =>
       isFavorite,
       isPinned,
       order,
+      isTemplate,
+      variables,
+      provider,
+      model,
+      temperature,
     }) => ({
       title,
       content,
@@ -20,6 +25,11 @@ export const toPortablePromptData = (prompts: Prompt[]) =>
       isFavorite,
       isPinned,
       order,
+      isTemplate,
+      variables,
+      provider,
+      model,
+      temperature,
     }),
   );
 

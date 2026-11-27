@@ -11,6 +11,8 @@ import PromptFilters, {
   type PromptSort,
 } from "../components/prompts/PromptFilters";
 import PromptDetailModal from "../components/prompts/PromptDetailModal";
+import TemplateBuilderModal from "../components/prompts/TemplateBuilderModal";
+import PromptVersionHistoryModal from "../components/prompts/PromptVersionHistoryModal";
 import ExplorePage from "./ExplorePage";
 import CollectionsPage from "./CollectionsPage";
 import SettingsPage from "./SettingsPage";
@@ -58,6 +60,8 @@ export default function Dashboard() {
   const [formOpen, setFormOpen] = useState(false);
   const [editingPrompt, setEditingPrompt] = useState<Prompt | null>(null);
   const [viewedPrompt, setViewedPrompt] = useState<Prompt | null>(null);
+  const [templatePrompt, setTemplatePrompt] = useState<Prompt | null>(null);
+  const [historyPrompt, setHistoryPrompt] = useState<Prompt | null>(null);
   const [collections, setCollections] = useState<PromptCollection[]>([]);
   const [collectionsLoaded, setCollectionsLoaded] = useState(false);
   const [collectionsError, setCollectionsError] = useState<string | null>(null);
@@ -83,8 +87,9 @@ export default function Dashboard() {
     ...(category !== "All" ? { category } : {}),
     ...(filter === "favorites" ? { favorite: true } : {}),
     ...(filter === "pinned" ? { pinned: true } : {}),
+    ...(activeView === "templates" ? { template: true } : {}),
     ...(folderId !== "All" ? { folderId } : {}),
-  }), [page, sort, search, category, filter, folderId]);
+  }), [page, sort, search, category, filter, folderId, activeView]);
 
   useEffect(() => {
     if (["explore", "collections", "folders", "settings"].includes(activeView)) return;
@@ -125,6 +130,7 @@ export default function Dashboard() {
     return () => {
       active = false;
     };
+
   }, []);
 
   useEffect(() => {
@@ -177,7 +183,7 @@ export default function Dashboard() {
       return;
     }
 
-    if (["explore", "collections", "folders", "settings", "trash"].includes(view)) {
+    if (["explore", "collections", "folders", "settings", "trash", "templates"].includes(view)) {
       setCategory("All");
       setFilter("all");
       return;
@@ -259,6 +265,26 @@ export default function Dashboard() {
     } catch (error) {
       toast.error(typeof error === "string" ? error : "Something went wrong");
     }
+  };
+
+  const handleSaveGeneratedPrompt = async (data: CreatePromptData) => {
+    try {
+      await dispatch(addPrompt(data)).unwrap();
+      dispatch(fetchPromptSummary());
+      setRefreshKey((key) => key + 1);
+      toast.success("Generated prompt saved to your library");
+      return true;
+    } catch (error) {
+      toast.error(typeof error === "string" ? error : "Failed to save generated prompt");
+      return false;
+    }
+  };
+
+  const handleRestoreVersion = async (restored: Prompt) => {
+    setViewedPrompt(restored);
+    dispatch(fetchPrompts(query));
+    dispatch(fetchPromptSummary());
+    toast.success("Earlier prompt version restored as a new version");
   };
 
   //  DELETE PROMPT
@@ -451,6 +477,11 @@ export default function Dashboard() {
           category: prompt.category,
           tags: prompt.tags,
           description: prompt.description,
+          isTemplate: prompt.isTemplate,
+          variables: prompt.variables,
+          provider: prompt.provider,
+          model: prompt.model,
+          temperature: prompt.temperature,
           isFavorite: false,
           isPinned: false,
         }),
@@ -774,7 +805,7 @@ export default function Dashboard() {
             onSave={handleSaveExplorePrompt}
           />
         </DashboardLayout>
-        {formOpen && <PromptForm prompt={editingPrompt} loading={loading} onSubmit={handleSubmit} onClose={handleCloseForm} />}
+        {formOpen && <PromptForm key={editingPrompt?._id ?? "new"} prompt={editingPrompt} loading={loading} onSubmit={handleSubmit} onClose={handleCloseForm} />}
       </>
     );
   }
@@ -795,7 +826,7 @@ export default function Dashboard() {
             onDelete={handleDeleteCollection}
           />
         </DashboardLayout>
-        {formOpen && <PromptForm prompt={editingPrompt} loading={loading} onSubmit={handleSubmit} onClose={handleCloseForm} />}
+        {formOpen && <PromptForm key={editingPrompt?._id ?? "new"} prompt={editingPrompt} loading={loading} onSubmit={handleSubmit} onClose={handleCloseForm} />}
       </>
     );
   }
@@ -828,12 +859,16 @@ export default function Dashboard() {
                     ? "Favorite prompts"
                     : filter === "pinned"
                       ? "Pinned prompts"
-                      : "My prompts"}
+                      : activeView === "templates"
+                        ? "Templates"
+                        : "My prompts"}
               </h1>
 
               <p className="mt-2 max-w-xl text-sm leading-6 text-slate-500 dark:text-slate-400">
                 {activeView === "trash"
                   ? "Restore prompts or permanently delete them."
+                  : activeView === "templates"
+                    ? "Reusable prompt templates with configurable variables."
                   : "Your private AI workflows, organized and ready when you need them."}
               </p>
             </div>
@@ -992,7 +1027,7 @@ export default function Dashboard() {
                     setPage(1);
 
                     if (value.trim()) {
-                      if (activeView !== "trash") {
+                      if (activeView !== "trash" && activeView !== "templates") {
                         setActiveView("all");
                         setCategory("All");
                         setFilter("all");
@@ -1050,7 +1085,9 @@ export default function Dashboard() {
                           ? "Favorite Prompts"
                           : filter === "pinned"
                             ? "Pinned Prompts"
-                            : "All Prompts"}
+                            : activeView === "templates"
+                              ? "Reusable Templates"
+                              : "All Prompts"}
                     </h2>
 
                     <p className="mt-1 text-sm text-slate-500">
@@ -1122,6 +1159,7 @@ export default function Dashboard() {
                   onSelect={handleSelectionChange}
                   canReorder={
                     activeView !== "trash" &&
+                    activeView !== "templates" &&
                     sort === "manual" &&
                     !search.trim() &&
                     category === "All" &&
@@ -1149,6 +1187,7 @@ export default function Dashboard() {
 
       {formOpen && (
         <PromptForm
+          key={editingPrompt?._id ?? "new"}
           prompt={editingPrompt}
           loading={loading}
           onSubmit={handleSubmit}
@@ -1164,6 +1203,29 @@ export default function Dashboard() {
           onEdit={handleEdit}
           onFavorite={(id) => void handleFavorite(id)}
           onPin={(id) => void handlePin(id)}
+          onUseTemplate={(prompt) => {
+            setViewedPrompt(null);
+            setTemplatePrompt(prompt);
+          }}
+          onHistory={(prompt) => {
+            setViewedPrompt(null);
+            setHistoryPrompt(prompt);
+          }}
+        />
+      )}
+      {templatePrompt && (
+        <TemplateBuilderModal
+          prompt={templatePrompt}
+          onClose={() => setTemplatePrompt(null)}
+          onCopy={handleCopy}
+          onSave={handleSaveGeneratedPrompt}
+        />
+      )}
+      {historyPrompt && (
+        <PromptVersionHistoryModal
+          prompt={historyPrompt}
+          onClose={() => setHistoryPrompt(null)}
+          onRestore={handleRestoreVersion}
         />
       )}
     </>

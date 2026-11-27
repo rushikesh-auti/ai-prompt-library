@@ -1,4 +1,12 @@
-import { FiCopy, FiEdit2, FiHeart, FiStar, FiX } from "react-icons/fi";
+import {
+  FiClock,
+  FiCopy,
+  FiEdit2,
+  FiHeart,
+  FiPlay,
+  FiStar,
+  FiX,
+} from "react-icons/fi";
 import type { Prompt } from "../../types/prompt";
 
 interface PromptDetailModalProps {
@@ -9,6 +17,8 @@ interface PromptDetailModalProps {
   onEdit: (prompt: Prompt) => void;
   onFavorite: (id: string) => void;
   onPin: (id: string) => void;
+  onUseTemplate: (prompt: Prompt) => void;
+  onHistory: (prompt: Prompt) => void;
 }
 
 export default function PromptDetailModal({
@@ -19,6 +29,8 @@ export default function PromptDetailModal({
   onEdit,
   onFavorite,
   onPin,
+  onUseTemplate,
+  onHistory,
 }: PromptDetailModalProps) {
   return (
     <div
@@ -42,6 +54,11 @@ export default function PromptDetailModal({
               {prompt.isPinned && (
                 <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
                   Pinned
+                </span>
+              )}
+              {prompt.isTemplate && (
+                <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                  Template
                 </span>
               )}
             </div>
@@ -84,6 +101,34 @@ export default function PromptDetailModal({
               ))}
             </div>
           )}
+          {(prompt.provider || prompt.model || prompt.temperature !== null) && (
+            <dl className="mt-5 grid gap-2 rounded-xl border border-slate-200 p-3 text-xs dark:border-slate-800 sm:grid-cols-3">
+              {prompt.provider && (
+                <div>
+                  <dt className="font-semibold text-slate-500">Provider</dt>
+                  <dd className="mt-1 text-slate-700 dark:text-slate-200">
+                    {prompt.provider}
+                  </dd>
+                </div>
+              )}
+              {prompt.model && (
+                <div>
+                  <dt className="font-semibold text-slate-500">Model</dt>
+                  <dd className="mt-1 text-slate-700 dark:text-slate-200">
+                    {prompt.model}
+                  </dd>
+                </div>
+              )}
+              {prompt.temperature !== null && (
+                <div>
+                  <dt className="font-semibold text-slate-500">Temperature</dt>
+                  <dd className="mt-1 text-slate-700 dark:text-slate-200">
+                    {prompt.temperature}
+                  </dd>
+                </div>
+              )}
+            </dl>
+          )}
           <p className="mt-5 text-xs text-slate-400">
             Created{" "}
             {new Date(prompt.createdAt).toLocaleDateString(undefined, {
@@ -95,6 +140,22 @@ export default function PromptDetailModal({
         </div>
         <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 bg-white px-5 py-4 dark:border-slate-800 dark:bg-slate-900 sm:px-7">
           <div className="flex flex-wrap gap-2">
+            {prompt.isTemplate && (
+              <button
+                type="button"
+                onClick={() => onUseTemplate(prompt)}
+                className="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-3 py-2 text-sm font-semibold text-white hover:bg-violet-700"
+              >
+                <FiPlay size={15} /> Use template
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => onHistory(prompt)}
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              <FiClock size={15} /> History
+            </button>
             <button
               type="button"
               onClick={() => onCopy(prompt.content)}

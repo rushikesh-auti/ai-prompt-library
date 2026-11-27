@@ -1,5 +1,5 @@
-import { useEffect } from "react";
-import { useForm } from "react-hook-form";
+import { useEffect, useState } from "react";
+import { useForm, useWatch } from "react-hook-form";
 import { FiPlus, FiX } from "react-icons/fi";
 
 import {
@@ -7,7 +7,14 @@ import {
   type Category,
   type CreatePromptData,
   type Prompt,
+  type PromptVariable,
+  type AIProvider,
 } from "../../types/prompt";
+import VariableConfigurationPanel from "./VariableConfigurationPanel";
+import {
+  createVariableDefinition,
+  detectVariables,
+} from "../../utils/promptVariables";
 
 interface PromptFormProps {
   prompt?: Prompt | null;
@@ -22,6 +29,10 @@ interface FormValues {
   category: Category;
   description: string;
   tagsInput: string;
+  isTemplate: boolean;
+  provider: AIProvider | "";
+  model: string;
+  temperature: string;
 }
 
 export default function PromptForm({
@@ -32,6 +43,7 @@ export default function PromptForm({
 }: PromptFormProps) {
   const {
     register,
+    control,
     handleSubmit,
     reset,
     formState: { errors },
@@ -42,8 +54,25 @@ export default function PromptForm({
       category: "Coding",
       description: "",
       tagsInput: "",
+      isTemplate: false,
+      provider: "",
+      model: "",
+      temperature: "",
     },
   });
+  const [variableOverrides, setVariableOverrides] = useState<
+    Record<string, Partial<PromptVariable>>
+  >({});
+  const contentValue = useWatch({ control, name: "content" });
+  const isTemplateValue = useWatch({ control, name: "isTemplate" });
+  const savedVariables = new Map(
+    (prompt?.variables || []).map((variable) => [variable.name, variable]),
+  );
+  const variables = detectVariables(contentValue || "").map((name) => ({
+    ...(savedVariables.get(name) ?? createVariableDefinition(name)),
+    ...variableOverrides[name],
+    name,
+  }));
 
   const isEditing = Boolean(prompt);
 
@@ -55,6 +84,12 @@ export default function PromptForm({
         category: prompt.category,
         description: prompt.description,
         tagsInput: prompt.tags.join(", "),
+        isTemplate: prompt.isTemplate ?? false,
+        provider: prompt.provider ?? "",
+        model: prompt.model ?? "",
+        temperature: prompt.temperature === null || prompt.temperature === undefined
+          ? ""
+          : String(prompt.temperature),
       });
     } else {
       reset({
@@ -63,6 +98,10 @@ export default function PromptForm({
         category: "Coding",
         description: "",
         tagsInput: "",
+        isTemplate: false,
+        provider: "",
+        model: "",
+        temperature: "",
       });
     }
   }, [prompt, reset]);
@@ -79,6 +118,13 @@ export default function PromptForm({
       category: values.category,
       description: values.description.trim(),
       tags,
+      isTemplate: values.isTemplate,
+      variables: values.isTemplate ? variables : [],
+      provider: values.provider || null,
+      model: values.model.trim(),
+      temperature: values.temperature.trim() === ""
+        ? null
+        : Number(values.temperature),
     });
   };
 
@@ -225,6 +271,86 @@ export default function PromptForm({
                 </p>
               )}
             </div>
+
+            <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-700">
+              <label className="inline-flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200">
+                <input
+                  type="checkbox"
+                  {...register("isTemplate")}
+                  className="accent-violet-600"
+                />
+                Save as reusable template
+              </label>
+              {isTemplateValue && (
+                <div className="mt-4">
+                  <h3 className="mb-3 text-sm font-semibold text-slate-800 dark:text-slate-200">
+                    Configure variables
+                  </h3>
+                  <VariableConfigurationPanel
+                    variables={variables}
+                    onChange={(name, updates) =>
+                      setVariableOverrides((current) => ({
+                        ...current,
+                        [name]: { ...current[name], ...updates },
+                      }))
+                    }
+                  />
+                </div>
+              )}
+            </div>
+
+            <fieldset className="rounded-xl border border-slate-200 p-4 dark:border-slate-700">
+              <legend className="px-1 text-sm font-semibold text-slate-800 dark:text-slate-200">
+                AI metadata <span className="font-normal text-slate-400">(optional)</span>
+              </legend>
+              <div className="grid gap-4 sm:grid-cols-3">
+                <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                  Provider
+                  <select
+                    {...register("provider")}
+                    className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  >
+                    <option value="">Not specified</option>
+                    <option value="openai">OpenAI</option>
+                    <option value="google-gemini">Google Gemini</option>
+                    <option value="anthropic">Anthropic</option>
+                  </select>
+                </label>
+                <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                  Model
+                  <input
+                    {...register("model")}
+                    maxLength={100}
+                    placeholder="e.g. model name"
+                    className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  />
+                </label>
+                <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                  Temperature
+                  <input
+                    type="number"
+                    min={0}
+                    max={2}
+                    step={0.1}
+                    {...register("temperature", {
+                      validate: (value) =>
+                        value === "" ||
+                        (Number.isFinite(Number(value)) &&
+                          Number(value) >= 0 &&
+                          Number(value) <= 2) ||
+                        "Temperature must be between 0 and 2",
+                    })}
+                    placeholder="0-2"
+                    className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  />
+                  {errors.temperature && (
+                    <span className="mt-1 block text-xs text-red-600">
+                      {errors.temperature.message}
+                    </span>
+                  )}
+                </label>
+              </div>
+            </fieldset>
 
             {/* Tags */}
             <div>
