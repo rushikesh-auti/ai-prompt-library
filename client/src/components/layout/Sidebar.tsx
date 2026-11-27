@@ -5,6 +5,7 @@ import {
   FiHeart,
   FiHome,
   FiPlus,
+  FiLayers,
   FiSettings,
   FiTag,
   FiTrash2,
@@ -51,6 +52,11 @@ export default function Sidebar({
       id: "favorites",
       label: "Favorites",
       icon: FiHeart,
+    },
+    {
+      id: "templates",
+      label: "Templates",
+      icon: FiLayers,
     },
     {
       id: "collections",
