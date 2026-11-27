@@ -8,6 +8,7 @@ jest.mock("../middleware/csrfProtection", () => {
 });
 jest.mock("../services/promptService", () => ({
   getAll: jest.fn(), getTrash: jest.fn(), getSummary: jest.fn(), explore: jest.fn(), getById: jest.fn(), create: jest.fn(), update: jest.fn(), remove: jest.fn(), restore: jest.fn(), permanentlyRemove: jest.fn(), reorder: jest.fn(), bulkAction: jest.fn(), importMany: jest.fn(),
+  getVersions: jest.fn(), getVersion: jest.fn(), restoreVersion: jest.fn(),
 }));
 const service = require("../services/promptService");
 jest.mock("../services/collectionService", () => ({
@@ -153,6 +154,47 @@ describe("prompt API integration", () => {
     await request(app).delete(`/api/prompts/${id}/permanent`).expect(200);
     expect(service.restore).toHaveBeenCalledWith(id, "507f1f77bcf86cd799439011");
     expect(service.permanentlyRemove).toHaveBeenCalledWith(id, "507f1f77bcf86cd799439011");
+  });
+  test("lists, reads, and restores prompt versions through the authenticated API", async () => {
+    const versionId = new mongoose.Types.ObjectId().toString();
+    const version = { _id: versionId, version: 1, snapshot: { ...validPrompt } };
+    service.getVersions.mockResolvedValue([version]);
+    service.getVersion.mockResolvedValue(version);
+    service.restoreVersion.mockResolvedValue({ _id: id, ...validPrompt });
+
+    await request(app)
+      .get(`/api/prompts/${id}/versions`)
+      .expect(200)
+      .expect((response) => expect(response.body.data).toEqual([version]));
+    await request(app)
+      .get(`/api/prompts/${id}/versions/${versionId}`)
+      .expect(200)
+      .expect((response) => expect(response.body.data).toEqual(version));
+    await request(app)
+      .post(`/api/prompts/${id}/restore/${versionId}`)
+      .expect(200);
+    expect(service.getVersions).toHaveBeenCalledWith(
+      id,
+      "507f1f77bcf86cd799439011",
+    );
+    expect(service.getVersion).toHaveBeenCalledWith(
+      id,
+      versionId,
+      "507f1f77bcf86cd799439011",
+    );
+    expect(service.restoreVersion).toHaveBeenCalledWith(
+      id,
+      versionId,
+      "507f1f77bcf86cd799439011",
+    );
+  });
+  test("rejects malformed prompt version identifiers", async () => {
+    await request(app)
+      .get(`/api/prompts/${id}/versions/not-an-id`)
+      .expect(400);
+    await request(app)
+      .post(`/api/prompts/${id}/restore/not-an-id`)
+      .expect(400);
   });
   test("rejects malformed collection references and IDs", async () => {
     await request(app).post("/api/collections").send({ name: "Writing", prompts: ["not-an-id"] }).expect(400);
