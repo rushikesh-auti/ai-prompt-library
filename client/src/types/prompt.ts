@@ -13,6 +13,16 @@ export const CATEGORIES = [
 
 export type Category = (typeof CATEGORIES)[number];
 
+export type AIProvider = "openai" | "google-gemini" | "anthropic";
+
+export interface PromptVariable {
+  name: string;
+  label: string;
+  description: string;
+  defaultValue: string;
+  required: boolean;
+}
+
 export interface Prompt {
   _id: string;
   title: string;
@@ -29,6 +39,11 @@ export interface Prompt {
   updatedAt: string;
   visibility?: "private" | "public";
   isSample?: boolean;
+  isTemplate: boolean;
+  variables: PromptVariable[];
+  provider: AIProvider | null;
+  model: string;
+  temperature: number | null;
 }
 
 export type ExplorePrompt = Pick<
@@ -42,6 +57,11 @@ export interface CreatePromptData {
   category: Category;
   tags: string[];
   description: string;
+  isTemplate?: boolean;
+  variables?: PromptVariable[];
+  provider?: AIProvider | null;
+  model?: string;
+  temperature?: number | null;
   isFavorite?: boolean;
   isPinned?: boolean;
   order?: number;
@@ -74,6 +94,7 @@ export interface PromptQuery {
   category?: Category;
   favorite?: boolean;
   pinned?: boolean;
+  template?: boolean;
   folderId?: string;
   sort?: PromptSort;
   page?: number;
@@ -106,3 +127,26 @@ export type BulkPromptAction =
       action: "moveToFolder";
       folderId: string | null;
     };
+
+export type PromptVersionSnapshot = Pick<
+    Prompt,
+    | "title"
+    | "content"
+    | "category"
+    | "tags"
+    | "description"
+    | "isTemplate"
+    | "variables"
+    | "provider"
+    | "model"
+    | "temperature"
+>;
+
+export interface PromptVersion {
+    _id: string;
+    prompt: string;
+    version: number;
+    snapshot: PromptVersionSnapshot;
+    author: string | { _id: string; name: string };
+    createdAt: string;
+}

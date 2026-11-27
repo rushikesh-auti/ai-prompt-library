@@ -8,6 +8,7 @@ import type {
   PromptPage,
   PromptQuery,
   PromptSummary,
+  PromptVersion,
   UpdatePromptData,
 } from "../types/prompt";
 
@@ -100,3 +101,18 @@ export const runBulkPromptAction = async (
 export const savePromptOrder = async (ids: string[]): Promise<void> => {
   await promptApi.post("/prompts/reorder", { ids });
 };
+
+export const getPromptVersions = async (id: string): Promise<PromptVersion[]> =>
+  (await promptApi.get(`/prompts/${id}/versions`)).data.data;
+
+export const getPromptVersion = async (
+  id: string,
+  versionId: string,
+): Promise<PromptVersion> =>
+  (await promptApi.get(`/prompts/${id}/versions/${versionId}`)).data.data;
+
+export const restorePromptVersion = async (
+  id: string,
+  versionId: string,
+): Promise<Prompt> =>
+  (await promptApi.post(`/prompts/${id}/restore/${versionId}`)).data.data;
