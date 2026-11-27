@@ -26,6 +26,12 @@ describe("prompt API integration", () => {
     await request(app).get("/health").expect(200, { success: true, status: "ok" });
     await request(app).get("/ready").expect(503, { success: false, status: "not_ready" });
   });
+  test("accepts requests forwarded through the Render proxy", async () => {
+    await request(app)
+      .get("/health")
+      .set("X-Forwarded-For", "203.0.113.10")
+      .expect(200, { success: true, status: "ok" });
+  });
   test("preserves GET collection response contract", async () => {
     service.getAll.mockResolvedValue([{ _id: id, ...validPrompt }]);
     const response = await request(app).get("/api/prompts/");

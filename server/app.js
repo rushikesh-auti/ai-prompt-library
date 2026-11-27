@@ -19,6 +19,7 @@ const createApp = (config) => {
     cookieSecure: config.cookieSecure ?? false,
     ...config,
   };
+  app.set("trust proxy", 1);
   app.disable("x-powered-by");
   app.use(helmet());
   app.use(
