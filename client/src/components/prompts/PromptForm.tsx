@@ -9,6 +9,7 @@ import {
   type Prompt,
   type PromptVariable,
   type AIProvider,
+  type StructuredPrompt,
 } from "../../types/prompt";
 import VariableConfigurationPanel from "./VariableConfigurationPanel";
 import {
@@ -23,6 +24,26 @@ interface PromptFormProps {
   onClose: () => void;
 }
 
+const structuredFields: Array<{
+  key: keyof StructuredPrompt;
+  label: string;
+  rows: number;
+}> = [
+  { key: "role", label: "Role", rows: 2 },
+  { key: "context", label: "Context", rows: 3 },
+  { key: "task", label: "Task", rows: 3 },
+  { key: "instructions", label: "Instructions", rows: 4 },
+  { key: "outputFormat", label: "Output format", rows: 3 },
+  { key: "constraints", label: "Constraints", rows: 3 },
+];
+
+const composeStructuredPrompt = (fields: StructuredPrompt) =>
+  structuredFields
+    .map(({ key, label }) => ({ label, value: fields[key].trim() }))
+    .filter(({ value }) => value)
+    .map(({ label, value }) => `${label}:\n${value}`)
+    .join("\n\n");
+
 interface FormValues {
   title: string;
   content: string;
@@ -33,6 +54,12 @@ interface FormValues {
   provider: AIProvider | "";
   model: string;
   temperature: string;
+  role: string;
+  context: string;
+  task: string;
+  instructions: string;
+  outputFormat: string;
+  constraints: string;
 }
 
 export default function PromptForm({
@@ -46,6 +73,8 @@ export default function PromptForm({
     control,
     handleSubmit,
     reset,
+    setValue,
+    setError,
     formState: { errors },
   } = useForm<FormValues>({
     defaultValues: {
@@ -58,17 +87,43 @@ export default function PromptForm({
       provider: "",
       model: "",
       temperature: "",
+      role: "",
+      context: "",
+      task: "",
+      instructions: "",
+      outputFormat: "",
+      constraints: "",
     },
   });
   const [variableOverrides, setVariableOverrides] = useState<
     Record<string, Partial<PromptVariable>>
   >({});
+  const [structuredMode, setStructuredMode] = useState(
+    Boolean(prompt?.structuredPrompt),
+  );
   const contentValue = useWatch({ control, name: "content" });
+  const role = useWatch({ control, name: "role" });
+  const context = useWatch({ control, name: "context" });
+  const task = useWatch({ control, name: "task" });
+  const instructions = useWatch({ control, name: "instructions" });
+  const outputFormat = useWatch({ control, name: "outputFormat" });
+  const constraints = useWatch({ control, name: "constraints" });
   const isTemplateValue = useWatch({ control, name: "isTemplate" });
+  const structuredPrompt: StructuredPrompt = {
+    role: role || "",
+    context: context || "",
+    task: task || "",
+    instructions: instructions || "",
+    outputFormat: outputFormat || "",
+    constraints: constraints || "",
+  };
+  const livePrompt = structuredMode
+    ? composeStructuredPrompt(structuredPrompt)
+    : contentValue || "";
   const savedVariables = new Map(
     (prompt?.variables || []).map((variable) => [variable.name, variable]),
   );
-  const variables = detectVariables(contentValue || "").map((name) => ({
+  const variables = detectVariables(livePrompt).map((name) => ({
     ...(savedVariables.get(name) ?? createVariableDefinition(name)),
     ...variableOverrides[name],
     name,
@@ -90,6 +145,12 @@ export default function PromptForm({
         temperature: prompt.temperature === null || prompt.temperature === undefined
           ? ""
           : String(prompt.temperature),
+        role: prompt.structuredPrompt?.role ?? "",
+        context: prompt.structuredPrompt?.context ?? "",
+        task: prompt.structuredPrompt?.task ?? "",
+        instructions: prompt.structuredPrompt?.instructions ?? "",
+        outputFormat: prompt.structuredPrompt?.outputFormat ?? "",
+        constraints: prompt.structuredPrompt?.constraints ?? "",
       });
     } else {
       reset({
@@ -102,11 +163,34 @@ export default function PromptForm({
         provider: "",
         model: "",
         temperature: "",
+        role: "",
+        context: "",
+        task: "",
+        instructions: "",
+        outputFormat: "",
+        constraints: "",
       });
     }
   }, [prompt, reset]);
 
   const submitForm = (values: FormValues) => {
+    const promptContent = structuredMode
+      ? composeStructuredPrompt({
+          role: values.role,
+          context: values.context,
+          task: values.task,
+          instructions: values.instructions,
+          outputFormat: values.outputFormat,
+          constraints: values.constraints,
+        })
+      : values.content.trim();
+    if (promptContent.trim().length < 10) {
+      setError(structuredMode ? "task" : "content", {
+        type: "validate",
+        message: "Prompt content must be at least 10 characters",
+      });
+      return;
+    }
     const tags = values.tagsInput
       .split(",")
       .map((tag) => tag.trim())
@@ -114,7 +198,7 @@ export default function PromptForm({
 
     onSubmit({
       title: values.title.trim(),
-      content: values.content.trim(),
+      content: promptContent,
       category: values.category,
       description: values.description.trim(),
       tags,
@@ -125,7 +209,26 @@ export default function PromptForm({
       temperature: values.temperature.trim() === ""
         ? null
         : Number(values.temperature),
+      structuredPrompt: structuredMode
+        ? {
+            role: values.role.trim(),
+            context: values.context.trim(),
+            task: values.task.trim(),
+            instructions: values.instructions.trim(),
+            outputFormat: values.outputFormat.trim(),
+            constraints: values.constraints.trim(),
+          }
+        : null,
     });
+  };
+
+  const toggleStructuredMode = () => {
+    if (!structuredMode) {
+      setValue("instructions", contentValue || "");
+    } else {
+      setValue("content", livePrompt);
+    }
+    setStructuredMode((current) => !current);
   };
 
   return (
@@ -237,40 +340,78 @@ export default function PromptForm({
               />
             </div>
 
-            {/* Prompt Content */}
-            <div>
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <label
-                htmlFor="content"
                 className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300"
               >
-                Prompt
+                Prompt content
               </label>
-
-              <textarea
-                id="content"
-                rows={8}
-                placeholder="Write your AI prompt here..."
-                {...register("content", {
-                  required: "Prompt content is required",
-                  minLength: {
-                    value: 10,
-                    message:
-                      "Prompt must be at least 10 characters",
-                  },
-                })}
-                className={`w-full resize-y rounded-lg border bg-white px-3 py-2.5 text-sm leading-6 outline-none transition dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 ${
-                  errors.content
-                    ? "border-red-300 focus:ring-2 focus:ring-red-100"
-                    : "border-slate-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-100 dark:focus:border-slate-600 dark:focus:ring-slate-700"
-                }`}
-              />
-
-              {errors.content && (
-                <p className="mt-1.5 text-xs text-red-600">
-                  {errors.content.message}
-                </p>
-              )}
+              <button
+                type="button"
+                onClick={toggleStructuredMode}
+                className="rounded-lg border border-violet-200 px-3 py-1.5 text-xs font-semibold text-violet-700 hover:bg-violet-50 dark:border-violet-900 dark:text-violet-300 dark:hover:bg-violet-950/40"
+              >
+                {structuredMode ? "Use plain prompt" : "Use structured builder"}
+              </button>
             </div>
+            {structuredMode ? (
+              <div className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {structuredFields.map(({ key, label, rows }) => (
+                    <label
+                      key={key}
+                      htmlFor={`structured-${key}`}
+                      className="block text-sm font-medium text-slate-700 dark:text-slate-300"
+                    >
+                      {label}{key === "task" ? " *" : ""}
+                      <textarea
+                        id={`structured-${key}`}
+                        rows={rows}
+                        placeholder={`Describe the prompt ${label.toLowerCase()}...`}
+                        {...register(key, key === "task" ? {
+                          required: "Task is required",
+                          minLength: { value: 10, message: "Task must be at least 10 characters" },
+                        } : {})}
+                        className="mt-1.5 w-full resize-y rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm leading-6 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                      />
+                      {errors[key] && (
+                        <span className="mt-1 block text-xs text-red-600">
+                          {errors[key]?.message}
+                        </span>
+                      )}
+                    </label>
+                  ))}
+                </div>
+                <section aria-label="Live prompt preview">
+                  <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                    Live prompt preview
+                  </h3>
+                  <pre className="mt-2 max-h-56 overflow-y-auto whitespace-pre-wrap break-words rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-700 dark:border-slate-700 dark:bg-slate-950/50 dark:text-slate-200">
+                    {livePrompt || "Your structured prompt preview will appear here."}
+                  </pre>
+                </section>
+              </div>
+            ) : (
+              <div>
+                <textarea
+                  id="content"
+                  rows={8}
+                  placeholder="Write your AI prompt here..."
+                  {...register("content", {
+                    required: "Prompt content is required",
+                    minLength: { value: 10, message: "Prompt must be at least 10 characters" },
+                  })}
+                  className={`w-full resize-y rounded-lg border bg-white px-3 py-2.5 text-sm leading-6 outline-none transition dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 ${
+                    errors.content
+                      ? "border-red-300 focus:ring-2 focus:ring-red-100"
+                      : "border-slate-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-100 dark:focus:border-slate-600 dark:focus:ring-slate-700"
+                  }`}
+                />
+                {errors.content && (
+                  <p className="mt-1.5 text-xs text-red-600">{errors.content.message}</p>
+                )}
+              </div>
+            )}
 
             <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-700">
               <label className="inline-flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200">
