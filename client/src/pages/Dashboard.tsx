@@ -13,6 +13,7 @@ import PromptFilters, {
 import PromptDetailModal from "../components/prompts/PromptDetailModal";
 import TemplateBuilderModal from "../components/prompts/TemplateBuilderModal";
 import PromptVersionHistoryModal from "../components/prompts/PromptVersionHistoryModal";
+import PromptEngineeringModal from "../components/prompts/PromptEngineeringModal";
 import ExplorePage from "./ExplorePage";
 import CollectionsPage from "./CollectionsPage";
 import SettingsPage from "./SettingsPage";
@@ -62,6 +63,7 @@ export default function Dashboard() {
   const [viewedPrompt, setViewedPrompt] = useState<Prompt | null>(null);
   const [templatePrompt, setTemplatePrompt] = useState<Prompt | null>(null);
   const [historyPrompt, setHistoryPrompt] = useState<Prompt | null>(null);
+  const [engineeringPrompt, setEngineeringPrompt] = useState<Prompt | null>(null);
   const [collections, setCollections] = useState<PromptCollection[]>([]);
   const [collectionsLoaded, setCollectionsLoaded] = useState(false);
   const [collectionsError, setCollectionsError] = useState<string | null>(null);
@@ -479,6 +481,8 @@ export default function Dashboard() {
           description: prompt.description,
           isTemplate: prompt.isTemplate,
           variables: prompt.variables,
+          structuredPrompt: prompt.structuredPrompt,
+          evaluationCriteria: prompt.evaluationCriteria,
           provider: prompt.provider,
           model: prompt.model,
           temperature: prompt.temperature,
@@ -1211,6 +1215,10 @@ export default function Dashboard() {
             setViewedPrompt(null);
             setHistoryPrompt(prompt);
           }}
+          onEngineeringTools={(prompt) => {
+            setViewedPrompt(null);
+            setEngineeringPrompt(prompt);
+          }}
         />
       )}
       {templatePrompt && (
@@ -1226,6 +1234,16 @@ export default function Dashboard() {
           prompt={historyPrompt}
           onClose={() => setHistoryPrompt(null)}
           onRestore={handleRestoreVersion}
+        />
+      )}
+      {engineeringPrompt && (
+        <PromptEngineeringModal
+          prompt={engineeringPrompt}
+          onClose={() => setEngineeringPrompt(null)}
+          onPromptUpdated={(updated) => {
+            setEngineeringPrompt(updated);
+            dispatch(fetchPrompts(query));
+          }}
         />
       )}
     </>

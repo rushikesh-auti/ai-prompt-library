@@ -5,6 +5,7 @@ import {
   FiHeart,
   FiPlay,
   FiStar,
+  FiTool,
   FiX,
 } from "react-icons/fi";
 import type { Prompt } from "../../types/prompt";
@@ -19,6 +20,7 @@ interface PromptDetailModalProps {
   onPin: (id: string) => void;
   onUseTemplate: (prompt: Prompt) => void;
   onHistory: (prompt: Prompt) => void;
+  onEngineeringTools: (prompt: Prompt) => void;
 }
 
 export default function PromptDetailModal({
@@ -31,6 +33,7 @@ export default function PromptDetailModal({
   onPin,
   onUseTemplate,
   onHistory,
+  onEngineeringTools,
 }: PromptDetailModalProps) {
   return (
     <div
@@ -155,6 +158,13 @@ export default function PromptDetailModal({
               className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
             >
               <FiClock size={15} /> History
+            </button>
+            <button
+              type="button"
+              onClick={() => onEngineeringTools(prompt)}
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              <FiTool size={15} /> Engineering tools
             </button>
             <button
               type="button"
