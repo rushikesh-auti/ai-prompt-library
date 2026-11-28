@@ -23,10 +23,54 @@ export interface PromptVariable {
   required: boolean;
 }
 
+export interface StructuredPrompt {
+  role: string;
+  context: string;
+  task: string;
+  instructions: string;
+  outputFormat: string;
+  constraints: string;
+}
+
+export interface EvaluationCriterion {
+  name: string;
+  description: string;
+}
+
+export interface PromptTestRun {
+  _id?: string;
+  version: number;
+  resolvedPrompt: string;
+  createdAt: string;
+}
+
+export interface PromptTestCase {
+  _id: string;
+  prompt: string;
+  name: string;
+  variableValues: Record<string, string>;
+  runs: PromptTestRun[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PromptEvaluation {
+  _id: string;
+  prompt: string;
+  version: number;
+  scores: Array<{ criterion: string; score: number }>;
+  feedback: string;
+  notes: string;
+  overallScore: number;
+  createdAt: string;
+}
+
 export interface Prompt {
   _id: string;
   title: string;
   content: string;
+  structuredPrompt?: StructuredPrompt | null;
+  evaluationCriteria?: EvaluationCriterion[];
   category: Category;
   tags: string[];
   description: string;
@@ -62,6 +106,8 @@ export interface CreatePromptData {
   provider?: AIProvider | null;
   model?: string;
   temperature?: number | null;
+  structuredPrompt?: StructuredPrompt | null;
+  evaluationCriteria?: EvaluationCriterion[];
   isFavorite?: boolean;
   isPinned?: boolean;
   order?: number;
@@ -132,6 +178,8 @@ export type PromptVersionSnapshot = Pick<
     Prompt,
     | "title"
     | "content"
+    | "structuredPrompt"
+    | "evaluationCriteria"
     | "category"
     | "tags"
     | "description"
@@ -149,4 +197,5 @@ export interface PromptVersion {
     snapshot: PromptVersionSnapshot;
     author: string | { _id: string; name: string };
     createdAt: string;
+    changeSummary: string;
 }

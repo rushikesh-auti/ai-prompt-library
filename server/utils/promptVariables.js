@@ -22,8 +22,28 @@ const getVariableConfigurationError = (content, variables) => {
   return null;
 };
 
+const getMissingRequiredVariables = (variables, values = {}) =>
+  variables
+    .filter(
+      (variable) =>
+        variable.required &&
+        !(values[variable.name]?.trim() || variable.defaultValue?.trim()),
+    )
+    .map((variable) => variable.name);
+
+const resolvePromptVariables = (content, variables, values = {}) => {
+  const configured = new Map(variables.map((variable) => [variable.name, variable]));
+  return content.replace(/\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g, (placeholder, name) => {
+    const variable = configured.get(name);
+    if (!variable) return placeholder;
+    return values[name]?.trim() ? values[name] : variable.defaultValue || "";
+  });
+};
+
 module.exports = {
   VARIABLE_NAME_PATTERN,
   extractVariableNames,
   getVariableConfigurationError,
+  getMissingRequiredVariables,
+  resolvePromptVariables,
 };
