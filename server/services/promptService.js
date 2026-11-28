@@ -1,14 +1,22 @@
 const Prompt = require("../models/Prompt");
 const PromptVersion = require("../models/PromptVersion");
+const PromptTestCase = require("../models/PromptTestCase");
+const PromptEvaluation = require("../models/PromptEvaluation");
 const Collection = require("../models/Collection");
 const ApiError = require("../errors/ApiError");
-const { getVariableConfigurationError } = require("../utils/promptVariables");
+const {
+  getMissingRequiredVariables,
+  getVariableConfigurationError,
+  resolvePromptVariables,
+} = require("../utils/promptVariables");
 
 const activePromptFilter = { isDeleted: { $ne: true } };
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const versionedFields = [
   "title",
   "content",
+  "structuredPrompt",
+  "evaluationCriteria",
   "category",
   "tags",
   "description",
@@ -22,21 +30,46 @@ const snapshotOf = (prompt) =>
   Object.fromEntries(
     versionedFields.map((field) => [
       field,
-      field === "variables"
+      field === "variables" || field === "evaluationCriteria"
         ? (prompt[field] || []).map((variable) =>
             typeof variable.toObject === "function" ? variable.toObject() : variable,
           )
-        : prompt[field],
+        : prompt[field] && typeof prompt[field].toObject === "function"
+          ? prompt[field].toObject()
+          : prompt[field],
     ]),
   );
-const createVersionSnapshot = (prompt, ownerId, authorId, version) =>
+const createVersionSnapshot = (prompt, ownerId, authorId, version, changeSummary) =>
   PromptVersion.create({
     prompt: prompt._id,
     owner: ownerId,
     version,
     snapshot: snapshotOf(prompt),
     author: authorId,
+    changeSummary,
   });
+const getChangeSummary = (before, after) => {
+  const labels = {
+    title: "title",
+    content: "content",
+    structuredPrompt: "structured sections",
+    evaluationCriteria: "evaluation criteria",
+    category: "category",
+    tags: "tags",
+    description: "description",
+    isTemplate: "template settings",
+    variables: "variables",
+    provider: "provider",
+    model: "model",
+    temperature: "temperature",
+  };
+  const changed = versionedFields.filter(
+    (field) => JSON.stringify(before[field]) !== JSON.stringify(after[field]),
+  );
+  return changed.length
+    ? `Updated ${changed.map((field) => labels[field]).join(", ")}`.slice(0, 300)
+    : "Prompt updated";
+};
 const ensureTemplateConfiguration = (prompt) => {
   if (!prompt.isTemplate) {
     if (prompt.variables?.length) {
@@ -55,7 +88,7 @@ const ensureBaselineVersion = async (prompt, ownerId, authorId) => {
   });
   if (existing) return;
   try {
-    await createVersionSnapshot(prompt, ownerId, authorId, 1);
+    await createVersionSnapshot(prompt, ownerId, authorId, 1, "Initial version");
   } catch (error) {
     if (error.code !== 11000) throw error;
     const persisted = await PromptVersion.findOne({
@@ -184,7 +217,7 @@ const create = async (data, ownerId) => {
     deletedAt: null,
     versionNumber: 1,
   });
-  await createVersionSnapshot(prompt, ownerId, ownerId, 1);
+  await createVersionSnapshot(prompt, ownerId, ownerId, 1, "Initial version");
   return prompt;
 };
 
@@ -203,6 +236,7 @@ const update = async (id, data, ownerId) => {
       Object.prototype.hasOwnProperty.call(data, field) &&
       JSON.stringify(snapshotOf(current)[field]) !== JSON.stringify(nextSnapshot[field]),
   );
+  const changeSummary = getChangeSummary(snapshotOf(current), nextSnapshot);
 
   if (!hasVersionedChange) {
     const prompt = await Prompt.findOneAndUpdate(
@@ -232,7 +266,7 @@ const update = async (id, data, ownerId) => {
     if (!stillOwned) throw new ApiError(404, "Prompt not found");
     throw new ApiError(409, "Prompt changed while saving. Reload and retry.");
   }
-  await createVersionSnapshot(prompt, ownerId, ownerId, nextVersion);
+  await createVersionSnapshot(prompt, ownerId, ownerId, nextVersion, changeSummary);
   return prompt;
 };
 
@@ -286,7 +320,13 @@ const restoreVersion = async (id, versionId, ownerId) => {
     if (!stillOwned) throw new ApiError(404, "Prompt not found");
     throw new ApiError(409, "Prompt changed while restoring. Reload and retry.");
   }
-  await createVersionSnapshot(prompt, ownerId, ownerId, nextVersion);
+  await createVersionSnapshot(
+    prompt,
+    ownerId,
+    ownerId,
+    nextVersion,
+    `Restored version ${target.version}`,
+  );
   return prompt;
 };
 
@@ -322,6 +362,8 @@ const permanentlyRemove = async (id, ownerId) => {
       { $pull: { prompts: prompt._id } },
     ),
     PromptVersion.deleteMany({ prompt: prompt._id, owner: ownerId }),
+    PromptTestCase.deleteMany({ prompt: prompt._id, owner: ownerId }),
+    PromptEvaluation.deleteMany({ prompt: prompt._id, owner: ownerId }),
   ]);
 };
 
@@ -384,6 +426,8 @@ const bulkAction = async ({ ids, action, folderId }, ownerId) => {
         { $pull: { prompts: { $in: ids } } },
       ),
       PromptVersion.deleteMany({ owner: ownerId, prompt: { $in: ids } }),
+      PromptTestCase.deleteMany({ owner: ownerId, prompt: { $in: ids } }),
+      PromptEvaluation.deleteMany({ owner: ownerId, prompt: { $in: ids } }),
     ]);
   } else if (action === "moveToFolder") {
     if (folderId) {
@@ -436,7 +480,7 @@ const importMany = async (prompts, ownerId) => {
     : [];
   await Promise.all(
     createdPrompts.map((prompt) =>
-      createVersionSnapshot(prompt, ownerId, ownerId, 1),
+      createVersionSnapshot(prompt, ownerId, ownerId, 1, "Initial version"),
     ),
   );
   return {
@@ -446,6 +490,153 @@ const importMany = async (prompts, ownerId) => {
     prompts: createdPrompts,
     errors: [],
   };
+};
+
+const getEngineeringPrompt = async (id, ownerId) => {
+  const prompt = await Prompt.findOne({
+    _id: id,
+    owner: ownerId,
+    ...activePromptFilter,
+  }).select("+versionNumber");
+  if (!prompt) throw new ApiError(404, "Prompt not found");
+  return prompt;
+};
+
+const serializeTestCase = (testCase) => {
+  const value = typeof testCase.toObject === "function" ? testCase.toObject() : testCase;
+  return {
+    ...value,
+    variableValues:
+      value.variableValues instanceof Map
+        ? Object.fromEntries(value.variableValues)
+        : value.variableValues || {},
+  };
+};
+
+const getTestCases = async (id, ownerId) => {
+  await getById(id, ownerId);
+  const cases = await PromptTestCase.find({ prompt: id, owner: ownerId })
+    .sort({ updatedAt: -1 });
+  return cases.map(serializeTestCase);
+};
+
+const saveTestCase = async (id, testCaseId, data, ownerId) => {
+  const prompt = await getById(id, ownerId);
+  const configuredNames = new Set((prompt.variables || []).map(({ name }) => name));
+  if (Object.keys(data.variableValues).some((name) => !configuredNames.has(name))) {
+    throw new ApiError(400, "Test values must match the prompt variables");
+  }
+  const filter = { prompt: id, owner: ownerId };
+  let saved;
+  if (testCaseId) {
+    saved = await PromptTestCase.findOneAndUpdate(
+      { _id: testCaseId, ...filter },
+      { $set: { name: data.name, variableValues: data.variableValues } },
+      { new: true, runValidators: true },
+    );
+    if (!saved) throw new ApiError(404, "Prompt test case not found");
+  } else {
+    const count = await PromptTestCase.countDocuments(filter);
+    if (count >= 50) {
+      throw new ApiError(400, "A prompt cannot have more than 50 test cases");
+    }
+    saved = await PromptTestCase.create({
+      ...data,
+      prompt: id,
+      owner: ownerId,
+      runs: [],
+    });
+  }
+  return serializeTestCase(saved);
+};
+
+const deleteTestCase = async (id, testCaseId, ownerId) => {
+  await getById(id, ownerId);
+  const removed = await PromptTestCase.findOneAndDelete({
+    _id: testCaseId,
+    prompt: id,
+    owner: ownerId,
+  });
+  if (!removed) throw new ApiError(404, "Prompt test case not found");
+};
+
+const runTestCase = async (id, testCaseId, ownerId) => {
+  const prompt = await getEngineeringPrompt(id, ownerId);
+  const testCase = await PromptTestCase.findOne({
+    _id: testCaseId,
+    prompt: id,
+    owner: ownerId,
+  });
+  if (!testCase) throw new ApiError(404, "Prompt test case not found");
+  const values =
+    testCase.variableValues instanceof Map
+      ? Object.fromEntries(testCase.variableValues)
+      : testCase.variableValues || {};
+  const missing = getMissingRequiredVariables(prompt.variables || [], values);
+  if (missing.length) {
+    throw new ApiError(400, "Required prompt variables are missing", missing);
+  }
+  const resolvedPrompt = resolvePromptVariables(
+    prompt.content,
+    prompt.variables || [],
+    values,
+  );
+  if (resolvedPrompt.length > 10000) {
+    throw new ApiError(400, "Resolved prompt cannot exceed 10,000 characters");
+  }
+  const run = {
+    version: prompt.versionNumber || 1,
+    resolvedPrompt,
+    createdAt: new Date(),
+  };
+  const updated = await PromptTestCase.findOneAndUpdate(
+    { _id: testCaseId, prompt: id, owner: ownerId },
+    { $push: { runs: { $each: [run], $slice: -20 } } },
+    { new: true, runValidators: true },
+  );
+  if (!updated) throw new ApiError(404, "Prompt test case not found");
+  return { testCase: serializeTestCase(updated), run };
+};
+
+const getEvaluationHistory = async (id, ownerId) => {
+  const prompt = await getById(id, ownerId);
+  const history = await PromptEvaluation.find({ prompt: id, owner: ownerId })
+    .sort({ createdAt: -1 })
+    .limit(100);
+  return { criteria: prompt.evaluationCriteria || [], history };
+};
+
+const updateEvaluationCriteria = async (id, criteria, ownerId) => {
+  return update(id, { evaluationCriteria: criteria }, ownerId);
+};
+
+const createEvaluation = async (id, data, ownerId) => {
+  const prompt = await getEngineeringPrompt(id, ownerId);
+  const criteria = prompt.evaluationCriteria || [];
+  const requestedNames = data.scores.map(({ criterion }) => criterion.toLowerCase());
+  const criterionNames = criteria.map(({ name }) => name.toLowerCase());
+  if (
+    criteria.length === 0 ||
+    requestedNames.length !== criterionNames.length ||
+    criterionNames.some((name) => !requestedNames.includes(name))
+  ) {
+    throw new ApiError(400, "Rate every configured evaluation criterion");
+  }
+  const overallScore = Number(
+    (
+      data.scores.reduce((total, { score }) => total + score, 0) /
+      data.scores.length
+    ).toFixed(2),
+  );
+  return PromptEvaluation.create({
+    prompt: id,
+    owner: ownerId,
+    version: prompt.versionNumber || 1,
+    scores: data.scores,
+    feedback: data.feedback,
+    notes: data.notes,
+    overallScore,
+  });
 };
 
 module.exports = {
@@ -465,4 +656,11 @@ module.exports = {
   reorder,
   bulkAction,
   importMany,
+  getTestCases,
+  saveTestCase,
+  deleteTestCase,
+  runTestCase,
+  getEvaluationHistory,
+  updateEvaluationCriteria,
+  createEvaluation,
 };

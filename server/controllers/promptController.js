@@ -110,6 +110,78 @@ const restorePromptVersion = async (req, res) => {
   );
   res.status(200).json({ success: true, message: "Prompt version restored", data });
 };
+const getPromptTestCases = async (req, res) => {
+  assertValidId(req.params.id);
+  const data = await promptService.getTestCases(req.params.id, req.user._id);
+  res.status(200).json({ success: true, data });
+};
+const createPromptTestCase = async (req, res) => {
+  assertValidId(req.params.id);
+  const data = await promptService.saveTestCase(
+    req.params.id,
+    null,
+    req.validatedBody,
+    req.user._id,
+  );
+  res.status(201).json({ success: true, data });
+};
+const updatePromptTestCase = async (req, res) => {
+  assertValidId(req.params.id);
+  assertValidId(req.params.testCaseId);
+  const data = await promptService.saveTestCase(
+    req.params.id,
+    req.params.testCaseId,
+    req.validatedBody,
+    req.user._id,
+  );
+  res.status(200).json({ success: true, data });
+};
+const deletePromptTestCase = async (req, res) => {
+  assertValidId(req.params.id);
+  assertValidId(req.params.testCaseId);
+  await promptService.deleteTestCase(
+    req.params.id,
+    req.params.testCaseId,
+    req.user._id,
+  );
+  res.status(200).json({ success: true, message: "Prompt test case deleted" });
+};
+const runPromptTestCase = async (req, res) => {
+  assertValidId(req.params.id);
+  assertValidId(req.params.testCaseId);
+  const data = await promptService.runTestCase(
+    req.params.id,
+    req.params.testCaseId,
+    req.user._id,
+  );
+  res.status(200).json({ success: true, data });
+};
+const getPromptEvaluations = async (req, res) => {
+  assertValidId(req.params.id);
+  const data = await promptService.getEvaluationHistory(
+    req.params.id,
+    req.user._id,
+  );
+  res.status(200).json({ success: true, data });
+};
+const updatePromptEvaluationCriteria = async (req, res) => {
+  assertValidId(req.params.id);
+  const data = await promptService.updateEvaluationCriteria(
+    req.params.id,
+    req.validatedBody.criteria,
+    req.user._id,
+  );
+  res.status(200).json({ success: true, data: data.evaluationCriteria, prompt: data });
+};
+const createPromptEvaluation = async (req, res) => {
+  assertValidId(req.params.id);
+  const data = await promptService.createEvaluation(
+    req.params.id,
+    req.validatedBody,
+    req.user._id,
+  );
+  res.status(201).json({ success: true, data });
+};
 const createPrompt = async (req, res) => {
   const prompt = await promptService.create(req.validatedBody, req.user._id);
   res
@@ -183,6 +255,14 @@ module.exports = {
   getPromptVersions,
   getPromptVersion,
   restorePromptVersion,
+  getPromptTestCases,
+  createPromptTestCase,
+  updatePromptTestCase,
+  deletePromptTestCase,
+  runPromptTestCase,
+  getPromptEvaluations,
+  updatePromptEvaluationCriteria,
+  createPromptEvaluation,
   createPrompt,
   updatePrompt,
   deletePrompt,

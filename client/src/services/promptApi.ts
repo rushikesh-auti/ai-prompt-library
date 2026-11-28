@@ -3,11 +3,14 @@ import { apiClient } from "./apiClient";
 import type {
   BulkPromptAction,
   CreatePromptData,
+  EvaluationCriterion,
+  PromptEvaluation,
   Prompt,
   PromptImportSummary,
   PromptPage,
   PromptQuery,
   PromptSummary,
+  PromptTestCase,
   PromptVersion,
   UpdatePromptData,
 } from "../types/prompt";
@@ -116,3 +119,49 @@ export const restorePromptVersion = async (
   versionId: string,
 ): Promise<Prompt> =>
   (await promptApi.post(`/prompts/${id}/restore/${versionId}`)).data.data;
+
+export const getPromptTestCases = async (id: string): Promise<PromptTestCase[]> =>
+  (await promptApi.get(`/prompts/${id}/test-cases`)).data.data;
+
+export const savePromptTestCase = async (
+  id: string,
+  data: Pick<PromptTestCase, "name" | "variableValues">,
+  testCaseId?: string,
+): Promise<PromptTestCase> =>
+  (
+    await (testCaseId
+      ? promptApi.put(`/prompts/${id}/test-cases/${testCaseId}`, data)
+      : promptApi.post(`/prompts/${id}/test-cases`, data))
+  ).data.data;
+
+export const deletePromptTestCase = async (
+  id: string,
+  testCaseId: string,
+): Promise<void> => {
+  await promptApi.delete(`/prompts/${id}/test-cases/${testCaseId}`);
+};
+
+export const runPromptTestCase = async (
+  id: string,
+  testCaseId: string,
+): Promise<{ testCase: PromptTestCase; run: PromptTestCase["runs"][number] }> =>
+  (await promptApi.post(`/prompts/${id}/test-cases/${testCaseId}/run`)).data.data;
+
+export const getPromptEvaluations = async (
+  id: string,
+): Promise<{ criteria: EvaluationCriterion[]; history: PromptEvaluation[] }> =>
+  (await promptApi.get(`/prompts/${id}/evaluations`)).data.data;
+
+export const updatePromptEvaluationCriteria = async (
+  id: string,
+  criteria: EvaluationCriterion[],
+): Promise<{ criteria: EvaluationCriterion[]; prompt: Prompt }> => {
+  const response = await promptApi.put(`/prompts/${id}/evaluation-criteria`, { criteria });
+  return { criteria: response.data.data, prompt: response.data.prompt };
+};
+
+export const createPromptEvaluation = async (
+  id: string,
+  data: Pick<PromptEvaluation, "scores" | "feedback" | "notes">,
+): Promise<PromptEvaluation> =>
+  (await promptApi.post(`/prompts/${id}/evaluations`, data)).data.data;
