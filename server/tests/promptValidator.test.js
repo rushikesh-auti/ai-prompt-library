@@ -5,6 +5,9 @@ const {
   promptQuerySchema,
   reorderPromptsSchema,
   bulkPromptsSchema,
+  testCaseSchema,
+  evaluationSchema,
+  evaluationCriteriaUpdateSchema,
 } = require("../validators/promptValidator");
 
 const validPrompt = { title: "React Code Review", content: "Review this React component and suggest improvements.", category: "Coding", tags: ["react"], description: "A review prompt" };
@@ -83,5 +86,43 @@ describe("prompt validators", () => {
         folderId: null,
       }).success,
     ).toBe(true);
+  });
+
+  test("validates structured sections, test cases, and manual evaluations", () => {
+    const structured = {
+      ...validPrompt,
+      structuredPrompt: {
+        role: "A writing coach",
+        context: "",
+        task: "Create a concise writing exercise.",
+        instructions: "",
+        outputFormat: "Numbered list",
+        constraints: "",
+      },
+    };
+    expect(createPromptSchema.safeParse(structured).success).toBe(true);
+    expect(createPromptSchema.safeParse({
+      ...structured,
+      structuredPrompt: { ...structured.structuredPrompt, unknown: "not allowed" },
+    }).success).toBe(false);
+    expect(testCaseSchema.safeParse({
+      name: "Friendly tone",
+      variableValues: { topic: "Gardening" },
+    }).success).toBe(true);
+    expect(testCaseSchema.safeParse({
+      name: "Invalid variable",
+      variableValues: { topic: 12 },
+    }).success).toBe(false);
+    expect(evaluationCriteriaUpdateSchema.safeParse({
+      criteria: [{ name: "Clarity", description: "Is the task clear?" }],
+    }).success).toBe(true);
+    expect(evaluationSchema.safeParse({
+      scores: [{ criterion: "Clarity", score: 4 }],
+      feedback: "Clear task",
+      notes: "",
+    }).success).toBe(true);
+    expect(evaluationSchema.safeParse({
+      scores: [{ criterion: "Clarity", score: 8 }],
+    }).success).toBe(false);
   });
 });

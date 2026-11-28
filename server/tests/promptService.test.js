@@ -18,6 +18,20 @@ jest.mock("../models/PromptVersion", () => ({
   deleteMany: jest.fn(),
   aggregate: jest.fn(),
 }));
+jest.mock("../models/PromptTestCase", () => ({
+  find: jest.fn(),
+  findOne: jest.fn(),
+  findOneAndUpdate: jest.fn(),
+  findOneAndDelete: jest.fn(),
+  countDocuments: jest.fn(),
+  deleteMany: jest.fn(),
+  create: jest.fn(),
+}));
+jest.mock("../models/PromptEvaluation", () => ({
+  find: jest.fn(),
+  deleteMany: jest.fn(),
+  create: jest.fn(),
+}));
 jest.mock("../models/Collection", () => ({
   findOne: jest.fn(),
   findOneAndUpdate: jest.fn(),
@@ -26,6 +40,8 @@ jest.mock("../models/Collection", () => ({
 const Prompt = require("../models/Prompt");
 const Collection = require("../models/Collection");
 const PromptVersion = require("../models/PromptVersion");
+const PromptTestCase = require("../models/PromptTestCase");
+const PromptEvaluation = require("../models/PromptEvaluation");
 const service = require("../services/promptService");
 
 describe("prompt service", () => {
@@ -510,5 +526,144 @@ describe("prompt service", () => {
       owner: ownerId,
       prompt: { $in: ids },
     });
+  });
+
+  test("does not list test cases when the prompt is not owned by the requester", async () => {
+    Prompt.findOne.mockResolvedValue(null);
+    await expect(
+      service.getTestCases(
+        "507f1f77bcf86cd799439011",
+        "507f1f77bcf86cd799439012",
+      ),
+    ).rejects.toMatchObject({ statusCode: 404, message: "Prompt not found" });
+    expect(PromptTestCase.find).not.toHaveBeenCalled();
+  });
+
+  test("rejects test case values that do not match configured prompt variables", async () => {
+    Prompt.findOne.mockResolvedValue({
+      variables: [{ name: "topic", required: true, defaultValue: "" }],
+    });
+    await expect(
+      service.saveTestCase(
+        "507f1f77bcf86cd799439011",
+        null,
+        { name: "Unexpected input", variableValues: { audience: "Readers" } },
+        "507f1f77bcf86cd799439012",
+      ),
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      message: "Test values must match the prompt variables",
+    });
+    expect(PromptTestCase.create).not.toHaveBeenCalled();
+  });
+
+  test("validates required variables before recording a test preview", async () => {
+    const promptId = "507f1f77bcf86cd799439011";
+    const caseId = "507f1f77bcf86cd799439012";
+    const ownerId = "507f1f77bcf86cd799439013";
+    Prompt.findOne.mockReturnValue({
+      select: jest.fn().mockResolvedValue({
+        _id: promptId,
+        versionNumber: 2,
+        content: "Write about {{topic}} for {{audience}}.",
+        variables: [
+          { name: "topic", required: true, defaultValue: "" },
+          { name: "audience", required: true, defaultValue: "" },
+        ],
+      }),
+    });
+    PromptTestCase.findOne.mockResolvedValue({
+      variableValues: new Map([["topic", "gardening"]]),
+    });
+
+    await expect(service.runTestCase(promptId, caseId, ownerId)).rejects.toMatchObject({
+      statusCode: 400,
+      message: "Required prompt variables are missing",
+      details: ["audience"],
+    });
+    expect(PromptTestCase.findOneAndUpdate).not.toHaveBeenCalled();
+  });
+
+  test("records the resolved prompt and version for a saved test preview", async () => {
+    const promptId = "507f1f77bcf86cd799439011";
+    const caseId = "507f1f77bcf86cd799439012";
+    const ownerId = "507f1f77bcf86cd799439013";
+    Prompt.findOne.mockReturnValue({
+      select: jest.fn().mockResolvedValue({
+        _id: promptId,
+        versionNumber: 4,
+        content: "Write about {{topic}} in a {{tone}} tone.",
+        variables: [
+          { name: "topic", required: true, defaultValue: "" },
+          { name: "tone", required: false, defaultValue: "friendly" },
+        ],
+      }),
+    });
+    PromptTestCase.findOne.mockResolvedValue({
+      variableValues: new Map([["topic", "gardening"]]),
+    });
+    PromptTestCase.findOneAndUpdate.mockResolvedValue({
+      _id: caseId,
+      variableValues: new Map([["topic", "gardening"]]),
+      runs: [{
+        version: 4,
+        resolvedPrompt: "Write about gardening in a friendly tone.",
+        createdAt: new Date("2026-01-01T00:00:00.000Z"),
+      }],
+    });
+
+    const result = await service.runTestCase(promptId, caseId, ownerId);
+
+    expect(PromptTestCase.findOneAndUpdate).toHaveBeenCalledWith(
+      { _id: caseId, prompt: promptId, owner: ownerId },
+      {
+        $push: {
+          runs: {
+            $each: [expect.objectContaining({
+              version: 4,
+              resolvedPrompt: "Write about gardening in a friendly tone.",
+            })],
+            $slice: -20,
+          },
+        },
+      },
+      { new: true, runValidators: true },
+    );
+    expect(result.run).toMatchObject({
+      version: 4,
+      resolvedPrompt: "Write about gardening in a friendly tone.",
+    });
+  });
+
+  test("saves a manually rated evaluation scoped to the prompt owner", async () => {
+    const promptId = "507f1f77bcf86cd799439011";
+    const ownerId = "507f1f77bcf86cd799439012";
+    Prompt.findOne.mockReturnValue({
+      select: jest.fn().mockResolvedValue({
+        _id: promptId,
+        versionNumber: 3,
+        evaluationCriteria: [
+          { name: "Clarity" },
+          { name: "Specificity" },
+        ],
+      }),
+    });
+    PromptEvaluation.create.mockResolvedValue({ overallScore: 4 });
+
+    await service.createEvaluation(promptId, {
+      scores: [
+        { criterion: "Clarity", score: 5 },
+        { criterion: "Specificity", score: 3 },
+      ],
+      feedback: "Clear but could be more precise",
+      notes: "",
+    }, ownerId);
+
+    expect(PromptEvaluation.create).toHaveBeenCalledWith(expect.objectContaining({
+      prompt: promptId,
+      owner: ownerId,
+      version: 3,
+      overallScore: 4,
+    }));
   });
 });
