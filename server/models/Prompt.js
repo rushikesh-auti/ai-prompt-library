@@ -1,5 +1,24 @@
 const mongoose = require("mongoose");
 
+const structuredPromptSchema = new mongoose.Schema(
+  {
+    role: { type: String, trim: true, maxlength: 3000, default: "" },
+    context: { type: String, trim: true, maxlength: 3000, default: "" },
+    task: { type: String, trim: true, maxlength: 3000, default: "" },
+    instructions: { type: String, trim: true, maxlength: 5000, default: "" },
+    outputFormat: { type: String, trim: true, maxlength: 3000, default: "" },
+    constraints: { type: String, trim: true, maxlength: 3000, default: "" },
+  },
+  { _id: false },
+);
+const evaluationCriterionSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true, trim: true, maxlength: 100 },
+    description: { type: String, trim: true, maxlength: 300, default: "" },
+  },
+  { _id: false },
+);
+
 const promptSchema = new mongoose.Schema(
   {
     owner: {
@@ -30,6 +49,17 @@ const promptSchema = new mongoose.Schema(
       required: [true, "Prompt content is required"],
       trim: true,
       minlength: [10, "Prompt content must be at least 10 characters"],
+    },
+
+    structuredPrompt: {
+      type: structuredPromptSchema,
+      default: undefined,
+    },
+
+    evaluationCriteria: {
+      type: [evaluationCriterionSchema],
+      default: [],
+      validate: [(criteria) => criteria.length <= 10, "Cannot exceed 10 evaluation criteria"],
     },
 
     category: {

@@ -27,6 +27,29 @@ const promptVariableSchema = z
   })
   .strict();
 const templateVariables = z.array(promptVariableSchema).max(50);
+const structuredPromptSchema = z
+  .object({
+    role: z.string().trim().max(3000).default(""),
+    context: z.string().trim().max(3000).default(""),
+    task: z.string().trim().max(3000).default(""),
+    instructions: z.string().trim().max(5000).default(""),
+    outputFormat: z.string().trim().max(3000).default(""),
+    constraints: z.string().trim().max(3000).default(""),
+  })
+  .strict();
+const evaluationCriteriaSchema = z
+  .array(
+    z.object({
+      name: z.string().trim().min(1).max(100),
+      description: z.string().trim().max(300).default(""),
+    }).strict(),
+  )
+  .max(10)
+  .refine(
+    (criteria) =>
+      new Set(criteria.map(({ name }) => name.toLowerCase())).size === criteria.length,
+    "Evaluation criterion names must be unique",
+  );
 const validateTemplateFields = (value, context) => {
   if (value.isTemplate && value.content && value.variables) {
     const error = getVariableConfigurationError(value.content, value.variables);
@@ -54,6 +77,8 @@ const trimmedString = (min, max, label) =>
 const promptFields = {
   title: trimmedString(3, 100, "Title"),
   content: trimmedString(10, 10000, "Prompt content"),
+  structuredPrompt: structuredPromptSchema.nullable().optional(),
+  evaluationCriteria: evaluationCriteriaSchema.default([]),
   category: z.enum(CATEGORIES),
   tags: z
     .array(trimmedString(1, 50, "Tag"))
@@ -79,6 +104,8 @@ const updatePromptSchema = z
   .object({
     title: trimmedString(3, 100, "Title").optional(),
     content: trimmedString(10, 10000, "Prompt content").optional(),
+    structuredPrompt: structuredPromptSchema.nullable().optional(),
+    evaluationCriteria: evaluationCriteriaSchema.optional(),
     category: z.enum(CATEGORIES).optional(),
     tags: z.array(trimmedString(1, 50, "Tag")).max(20, "Tags cannot exceed 20 items").optional(),
     description: z.string().trim().max(300, "Description cannot exceed 300 characters").optional(),
@@ -133,6 +160,30 @@ const bulkPromptsSchema = z.discriminatedUnion("action", [
     folderId: z.string().regex(/^[a-f\d]{24}$/i, "Folder ID is invalid").nullable(),
   }).strict(),
 ]);
+const testCaseSchema = z.object({
+  name: z.string().trim().min(1).max(100),
+  variableValues: z.record(z.string(), z.string().max(1000)).refine(
+    (values) => Object.keys(values).length <= 50,
+    "Cannot provide more than 50 variable values",
+  ),
+}).strict();
+const evaluationSchema = z.object({
+  scores: z.array(
+    z.object({
+      criterion: z.string().trim().min(1).max(100),
+      score: z.number().int().min(1).max(5),
+    }).strict(),
+  ).min(1).max(10),
+  feedback: z.string().trim().max(2000).default(""),
+  notes: z.string().trim().max(2000).default(""),
+}).strict().refine(
+  ({ scores }) =>
+    new Set(scores.map(({ criterion }) => criterion.toLowerCase())).size === scores.length,
+  "Evaluation scores must have unique criteria",
+);
+const evaluationCriteriaUpdateSchema = z.object({
+  criteria: evaluationCriteriaSchema,
+}).strict();
 const formatZodIssues = (issues) =>
   issues.map((issue) => ({
     field: issue.path.join(".") || "body",
@@ -147,5 +198,8 @@ module.exports = {
   promptQuerySchema,
   reorderPromptsSchema,
   bulkPromptsSchema,
+  testCaseSchema,
+  evaluationSchema,
+  evaluationCriteriaUpdateSchema,
   formatZodIssues,
 };
