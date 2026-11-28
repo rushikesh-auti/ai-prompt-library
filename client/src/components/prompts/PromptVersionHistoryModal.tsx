@@ -174,6 +174,9 @@ export default function PromptVersionHistoryModal({
                       <span className="mt-1 block text-xs text-slate-500">
                         {new Date(version.createdAt).toLocaleString()}
                       </span>
+                      <span className="mt-1 block text-xs text-slate-600 dark:text-slate-300">
+                        {version.changeSummary}
+                      </span>
                       <span className="mt-1 block text-xs text-slate-500">
                         By {typeof version.author === "string" ? "You" : version.author.name}
                       </span>
@@ -283,6 +286,8 @@ export default function PromptVersionHistoryModal({
                         ["Tags", before.snapshot.tags.join(", "), after.snapshot.tags.join(", ")],
                         ["Template", String(before.snapshot.isTemplate), String(after.snapshot.isTemplate)],
                         ["Variables", JSON.stringify(before.snapshot.variables), JSON.stringify(after.snapshot.variables)],
+                        ["Structured sections", JSON.stringify(before.snapshot.structuredPrompt ?? null), JSON.stringify(after.snapshot.structuredPrompt ?? null)],
+                        ["Evaluation criteria", JSON.stringify(before.snapshot.evaluationCriteria ?? []), JSON.stringify(after.snapshot.evaluationCriteria ?? [])],
                         ["Provider / model", `${before.snapshot.provider ?? "—"} / ${before.snapshot.model || "—"}`, `${after.snapshot.provider ?? "—"} / ${after.snapshot.model || "—"}`],
                         ["Temperature", String(before.snapshot.temperature ?? "—"), String(after.snapshot.temperature ?? "—")],
                       ]

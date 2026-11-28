@@ -1,5 +1,17 @@
 const mongoose = require("mongoose");
 
+const structuredPromptSnapshotSchema = new mongoose.Schema(
+  {
+    role: { type: String, default: "" },
+    context: { type: String, default: "" },
+    task: { type: String, default: "" },
+    instructions: { type: String, default: "" },
+    outputFormat: { type: String, default: "" },
+    constraints: { type: String, default: "" },
+  },
+  { _id: false },
+);
+
 const promptVersionSchema = new mongoose.Schema(
   {
     prompt: {
@@ -24,6 +36,22 @@ const promptVersionSchema = new mongoose.Schema(
     snapshot: {
       title: { type: String, required: true },
       content: { type: String, required: true },
+      structuredPrompt: {
+        type: structuredPromptSnapshotSchema,
+        default: null,
+      },
+      evaluationCriteria: {
+        type: [
+          new mongoose.Schema(
+            {
+              name: { type: String, required: true },
+              description: { type: String, default: "" },
+            },
+            { _id: false },
+          ),
+        ],
+        default: [],
+      },
       category: { type: String, required: true },
       tags: { type: [String], default: [] },
       description: { type: String, default: "" },
@@ -37,6 +65,13 @@ const promptVersionSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
+      immutable: true,
+    },
+    changeSummary: {
+      type: String,
+      trim: true,
+      maxlength: 300,
+      default: "Prompt updated",
       immutable: true,
     },
   },
